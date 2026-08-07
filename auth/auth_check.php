@@ -188,4 +188,71 @@ function ensure_appointments_table_exists(): void
     );
 }
 
+function ensure_medical_test_tables_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `medical_tests` (
+          `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name`              VARCHAR(190) NOT NULL,
+          `description`       TEXT NULL,
+          `test_type`         VARCHAR(100) NOT NULL,
+          `price`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          `place`             VARCHAR(120) NOT NULL,
+          `department`        VARCHAR(120) NULL,
+          `result_time`       VARCHAR(60) NOT NULL,
+          `availability`      TINYINT(1) NOT NULL DEFAULT 1,
+          `home_collection`   TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_medical_tests_place` (`place`),
+          KEY `idx_medical_tests_type` (`test_type`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `medical_test_bookings` (
+          `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `test_id`           INT UNSIGNED NOT NULL,
+          `user_id`           INT UNSIGNED NOT NULL,
+          `booking_date`      DATE NOT NULL,
+          `booking_time`      TIME NULL,
+          `status`            VARCHAR(30) NOT NULL DEFAULT \'Pending\',
+          `result_file`       VARCHAR(255) NULL,
+          `result_notes`      TEXT NULL,
+          `result_date`       DATE NULL,
+          `technician_id`     INT UNSIGNED NULL,
+          `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `updated_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_test_bookings_user` (`user_id`),
+          KEY `idx_test_bookings_test` (`test_id`),
+          CONSTRAINT `fk_test_bookings_test`
+            FOREIGN KEY (`test_id`) REFERENCES `medical_tests` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_test_bookings_user`
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_test_bookings_technician`
+            FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    $count = (int)db()->query('SELECT COUNT(*) FROM medical_tests')->fetchColumn();
+    if ($count === 0) {
+        $seed = [
+            ['CBC Test', 'A complete blood count check for overall health screening.', 'Blood Test', 500, 'Dhaka', 'Pathology', 'Same Day', 1, 1],
+            ['Blood Sugar Test', 'Checks fasting and random glucose levels for diabetes screening.', 'Biochemistry', 300, 'Mirpur', 'Lab', 'Same Day', 1, 0],
+            ['Lipid Profile', 'Measures cholesterol and triglyceride levels to assess heart risk.', 'Biochemistry', 700, 'Uttara', 'Biochemistry', '1 Day', 1, 1],
+            ['X-Ray', 'Radiology imaging service for bones and chest evaluation.', 'Imaging', 1200, 'Dhanmondi', 'Radiology', '2 Days', 1, 0],
+            ['COVID/Flu Test', 'Rapid screening for COVID-19 and flu-related symptoms.', 'COVID/Flu Test', 900, 'Banani', 'Pathology', 'Same Day', 1, 1],
+            ['Thyroid Profile', 'Measures thyroid hormones for metabolic and hormonal balance.', 'Hormone Test', 850, 'Gulshan', 'Endocrinology', '1 Day', 1, 0],
+        ];
+
+        $stmt = db()->prepare(
+            'INSERT INTO medical_tests (name, description, test_type, price, place, department, result_time, availability, home_collection) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($seed as $row) {
+            $stmt->execute($row);
+        }
+    }
+}
+
 remember_me_login();

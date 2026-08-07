@@ -166,6 +166,50 @@ CREATE TABLE IF NOT EXISTS `appointments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
+-- Medical test marketplace
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `medical_tests` (
+  `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`              VARCHAR(190) NOT NULL,
+  `description`       TEXT NULL,
+  `test_type`         VARCHAR(100) NOT NULL,
+  `price`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `place`             VARCHAR(120) NOT NULL,
+  `department`        VARCHAR(120) NULL,
+  `result_time`       VARCHAR(60) NOT NULL,
+  `availability`      TINYINT(1) NOT NULL DEFAULT 1,
+  `home_collection`   TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_medical_tests_place` (`place`),
+  KEY `idx_medical_tests_type` (`test_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `medical_test_bookings` (
+  `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `test_id`           INT UNSIGNED NOT NULL,
+  `user_id`           INT UNSIGNED NOT NULL,
+  `booking_date`      DATE NOT NULL,
+  `booking_time`      TIME NULL,
+  `status`            VARCHAR(30) NOT NULL DEFAULT 'Pending',
+  `result_file`       VARCHAR(255) NULL,
+  `result_notes`      TEXT NULL,
+  `result_date`       DATE NULL,
+  `technician_id`     INT UNSIGNED NULL,
+  `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_test_bookings_user` (`user_id`),
+  KEY `idx_test_bookings_test` (`test_id`),
+  CONSTRAINT `fk_test_bookings_test`
+    FOREIGN KEY (`test_id`) REFERENCES `medical_tests` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_test_bookings_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_test_bookings_technician`
+    FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
 -- Optional demo account (password: Admin123!)
 --   email:    admin@nhre.gov
 --   fullname: System Administrator

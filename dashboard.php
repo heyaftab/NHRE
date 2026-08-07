@@ -231,6 +231,15 @@ try {
         </div>
 
         <div class="col-md-6 col-xl-3">
+          <article class="dashboard-card">
+            <div class="dashboard-card-icon"><i class="fa-solid fa-flask-vial"></i></div>
+            <h2>Tests</h2>
+            <p>Browse medical tests, book diagnostics, and track your lab bookings in one place.</p>
+            <a href="medical_tests.php" class="dashboard-card-link">Open Marketplace</a>
+          </article>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
           <article class="dashboard-card dashboard-card-danger">
             <div class="dashboard-card-icon"><i class="fa-solid fa-right-from-bracket"></i></div>
             <h2>Logout</h2>
