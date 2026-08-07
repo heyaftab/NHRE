@@ -164,4 +164,28 @@ function create_notification(int $user_id, string $title, string $message, strin
     }
 }
 
+function ensure_appointments_table_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `appointments` (
+          `appointment_id`   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `patient_id`       INT UNSIGNED NOT NULL,
+          `doctor_id`        INT UNSIGNED NOT NULL,
+          `appointment_date` DATE            NOT NULL,
+          `appointment_time` TIME            NOT NULL,
+          `reason`           TEXT            NOT NULL,
+          `status`           VARCHAR(30)     NOT NULL DEFAULT \'Pending\',
+          `doctor_notes`     TEXT            NULL,
+          `created_at`       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`appointment_id`),
+          KEY `idx_appointments_patient` (`patient_id`),
+          KEY `idx_appointments_doctor` (`doctor_id`),
+          CONSTRAINT `fk_appointments_patient`
+            FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_appointments_doctor`
+            FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+}
+
 remember_me_login();
