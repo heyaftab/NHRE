@@ -1,0 +1,303 @@
+<?php
+require_once __DIR__ . '/auth/auth_check.php';
+require_auth();
+
+$errors = session_pull('errors', []);
+$success = session_pull('success');
+$old = session_pull('old', []);
+
+$user_id = (int)($_SESSION['user_id'] ?? 0);
+$stmt = db()->prepare('SELECT fullname, email, phone, nid, account_number, date_of_birth, nationality, gender, address, emergency_contact, blood_group, marital_status, occupation, profile_photo, role FROM users WHERE id = ? LIMIT 1');
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+$profile = is_array($user) ? $user : [];
+$profile = array_merge($profile, is_array($old) ? $old : []);
+$fullname = $profile['fullname'] ?? ($_SESSION['fullname'] ?? 'NHRE User');
+$email = $profile['email'] ?? ($_SESSION['email'] ?? '');
+$role = $profile['role'] ?? ($_SESSION['role'] ?? 'User');
+$phone = $profile['phone'] ?? '';
+$nid = $profile['nid'] ?? '';
+$account_number = $profile['account_number'] ?? '';
+if ($account_number === '') {
+    $account_number = 'NHRE-' . $user_id;
+}
+$date_of_birth = '';
+if (!empty($profile['date_of_birth'])) {
+    try {
+        $date_of_birth = (new DateTimeImmutable((string)$profile['date_of_birth']))->format('d M Y');
+    } catch (Exception $e) {
+        $date_of_birth = (string)$profile['date_of_birth'];
+    }
+}
+$nationality = $profile['nationality'] ?? '';
+$gender = $profile['gender'] ?? '';
+$address = $profile['address'] ?? '';
+$emergency_contact = $profile['emergency_contact'] ?? '';
+$blood_group = $profile['blood_group'] ?? '';
+$marital_status = $profile['marital_status'] ?? '';
+$occupation = $profile['occupation'] ?? '';
+$profile_photo = $profile['profile_photo'] ?? '';
+
+function render_profile_value(mixed $value): string
+{
+    if ($value === null || $value === '') {
+        return '<span class="text-muted">Not provided</span>';
+    }
+
+    return e($value);
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - NHRE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("nhre-theme");
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.style.colorScheme = t;
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body class="dashboard-body">
+  <nav class="dashboard-nav">
+    <div class="container d-flex align-items-center justify-content-between gap-3">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
+        <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
+      </a>
+      <div class="d-flex gap-2">
+        <a href="dashboard.php" class="btn btn-dashboard-logout ripple">
+          <i class="fa-solid fa-house"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="logout.php" class="btn btn-dashboard-logout ripple">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>Logout</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="dashboard-main">
+    <section class="container">
+      <div class="dashboard-hero glass-card">
+        <div class="d-flex align-items-center gap-3">
+          <div class="profile-avatar-wrapper">
+            <?php if (!empty($profile_photo)): ?>
+              <img src="<?= e($profile_photo) ?>" alt="Profile photo" class="profile-avatar">
+            <?php else: ?>
+              <div class="profile-avatar placeholder-avatar">
+                <i class="fa-solid fa-user"></i>
+              </div>
+            <?php endif; ?>
+          </div>
+          <div>
+            <span class="auth-kicker">User Profile</span>
+            <h1><?= e($fullname) ?></h1>
+            <p>Role: <strong><?= e($role) ?></strong></p>
+          </div>
+        </div>
+        <div class="dashboard-user-pill">
+          <i class="fa-solid fa-circle-user"></i>
+          <span><?= e($email) ?></span>
+        </div>
+      </div>
+
+      <?php if ($errors): ?>
+        <div class="alert alert-danger auth-alert" role="alert">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <div>
+            <?php foreach ($errors as $message): ?>
+              <div><?= e($message) ?></div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <?php if ($success): ?>
+        <div class="alert alert-success auth-alert" role="alert">
+          <i class="fa-solid fa-circle-check"></i>
+          <span><?= e($success) ?></span>
+        </div>
+      <?php endif; ?>
+
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <article class="dashboard-card text-center">
+            <div class="dashboard-card-icon mx-auto"><i class="fa-solid fa-user-check"></i></div>
+            <h2>Account Summary</h2>
+            <p>Verified NHRE account details and access level.</p>
+            <div class="mt-3">
+              <span class="badge bg-success-subtle text-success-emphasis px-3 py-2">Active Account</span>
+            </div>
+            <div class="mt-4 text-start">
+              <div class="small text-muted mb-2">Account number</div>
+              <div class="fw-semibold"><?= e($account_number) ?></div>
+            </div>
+            <div class="profile-summary-photo mt-4">
+              <?php if (!empty($profile_photo)): ?>
+                <img src="<?= e($profile_photo) ?>" alt="Profile photo">
+              <?php else: ?>
+                <div class="profile-summary-placeholder">
+                  <i class="fa-solid fa-user"></i>
+                </div>
+              <?php endif; ?>
+            </div>
+          </article>
+        </div>
+
+        <div class="col-lg-8">
+          <article class="dashboard-card">
+            <div class="dashboard-card-icon"><i class="fa-solid fa-id-card"></i></div>
+            <h2>Modify Profile</h2>
+            <p class="text-muted mb-3">Update your personal and contact details below.</p>
+            <form action="auth/profile_update_process.php" method="POST" enctype="multipart/form-data" class="auth-form">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <div class="profile-photo-card">
+                <div class="profile-photo-preview">
+                  <?php if (!empty($profile_photo)): ?>
+                    <img src="<?= e($profile_photo) ?>" alt="Current profile photo">
+                  <?php else: ?>
+                    <i class="fa-solid fa-camera"></i>
+                  <?php endif; ?>
+                </div>
+                <div>
+                  <label for="profile_photo" class="btn btn-auth-primary ripple">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Choose photo</span>
+                  </label>
+                  <input type="file" id="profile_photo" name="profile_photo" class="d-none" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif">
+                  <div class="form-text mt-2">PNG, JPG, WEBP, or GIF up to 2 MB.</div>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="fullname" name="fullname" placeholder="Full Name" value="<?= e($profile['fullname'] ?? '') ?>" required maxlength="150">
+                    <label for="fullname"><i class="fa-solid fa-user"></i> Full Name</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="email" class="form-control" id="email" name="email" placeholder="Email" value="<?= e($profile['email'] ?? '') ?>" required maxlength="190">
+                    <label for="email"><i class="fa-solid fa-envelope"></i> Email Address</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="tel" class="form-control" id="phone" name="phone" placeholder="Phone Number" value="<?= e($profile['phone'] ?? '') ?>" required pattern="^\+?[0-9][0-9\s().-]{7,19}$">
+                    <label for="phone"><i class="fa-solid fa-phone"></i> Phone Number</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="account_number" name="account_number" placeholder="Account Number" value="<?= e($profile['account_number'] ?? '') ?>">
+                    <label for="account_number"><i class="fa-solid fa-hashtag"></i> Account Number</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="nid" name="nid" placeholder="NID" value="<?= e($profile['nid'] ?? '') ?>" readonly>
+                    <label for="nid"><i class="fa-solid fa-id-card"></i> National ID (NID)</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" value="<?= e($profile['date_of_birth'] ?? '') ?>">
+                    <label for="date_of_birth"><i class="fa-solid fa-calendar-day"></i> Date of Birth</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="nationality" name="nationality" placeholder="Nationality" value="<?= e($profile['nationality'] ?? '') ?>">
+                    <label for="nationality"><i class="fa-solid fa-globe"></i> Nationality</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <select class="form-select" id="gender" name="gender">
+                      <option value="" <?= (($profile['gender'] ?? '') === '') ? 'selected' : '' ?>>Select gender</option>
+                      <option value="Male" <?= (($profile['gender'] ?? '') === 'Male') ? 'selected' : '' ?>>Male</option>
+                      <option value="Female" <?= (($profile['gender'] ?? '') === 'Female') ? 'selected' : '' ?>>Female</option>
+                      <option value="Other" <?= (($profile['gender'] ?? '') === 'Other') ? 'selected' : '' ?>>Other</option>
+                    </select>
+                    <label for="gender"><i class="fa-solid fa-venus-mars"></i> Gender</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <select class="form-select" id="blood_group" name="blood_group">
+                      <option value="" <?= (($profile['blood_group'] ?? '') === '') ? 'selected' : '' ?>>Select blood group</option>
+                      <option value="A+" <?= (($profile['blood_group'] ?? '') === 'A+') ? 'selected' : '' ?>>A+</option>
+                      <option value="A-" <?= (($profile['blood_group'] ?? '') === 'A-') ? 'selected' : '' ?>>A-</option>
+                      <option value="B+" <?= (($profile['blood_group'] ?? '') === 'B+') ? 'selected' : '' ?>>B+</option>
+                      <option value="B-" <?= (($profile['blood_group'] ?? '') === 'B-') ? 'selected' : '' ?>>B-</option>
+                      <option value="AB+" <?= (($profile['blood_group'] ?? '') === 'AB+') ? 'selected' : '' ?>>AB+</option>
+                      <option value="AB-" <?= (($profile['blood_group'] ?? '') === 'AB-') ? 'selected' : '' ?>>AB-</option>
+                      <option value="O+" <?= (($profile['blood_group'] ?? '') === 'O+') ? 'selected' : '' ?>>O+</option>
+                      <option value="O-" <?= (($profile['blood_group'] ?? '') === 'O-') ? 'selected' : '' ?>>O-</option>
+                    </select>
+                    <label for="blood_group"><i class="fa-solid fa-droplet"></i> Blood Group</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <select class="form-select" id="marital_status" name="marital_status">
+                      <option value="" <?= (($profile['marital_status'] ?? '') === '') ? 'selected' : '' ?>>Select status</option>
+                      <option value="Single" <?= (($profile['marital_status'] ?? '') === 'Single') ? 'selected' : '' ?>>Single</option>
+                      <option value="Married" <?= (($profile['marital_status'] ?? '') === 'Married') ? 'selected' : '' ?>>Married</option>
+                      <option value="Divorced" <?= (($profile['marital_status'] ?? '') === 'Divorced') ? 'selected' : '' ?>>Divorced</option>
+                      <option value="Widowed" <?= (($profile['marital_status'] ?? '') === 'Widowed') ? 'selected' : '' ?>>Widowed</option>
+                    </select>
+                    <label for="marital_status"><i class="fa-solid fa-ring"></i> Marital Status</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="occupation" name="occupation" placeholder="Occupation" value="<?= e($profile['occupation'] ?? '') ?>">
+                    <label for="occupation"><i class="fa-solid fa-briefcase"></i> Occupation</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="emergency_contact" name="emergency_contact" placeholder="Emergency Contact" value="<?= e($profile['emergency_contact'] ?? '') ?>">
+                    <label for="emergency_contact"><i class="fa-solid fa-phone-volume"></i> Emergency Contact</label>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <div class="form-floating">
+                    <textarea class="form-control" id="address" name="address" placeholder="Address" style="min-height: 110px;"><?= e($profile['address'] ?? '') ?></textarea>
+                    <label for="address"><i class="fa-solid fa-location-dot"></i> Address</label>
+                  </div>
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                  <button type="submit" class="btn btn-auth-primary ripple">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/app.js?v=20260807-2"></script>
+</body>
+</html>

@@ -25,8 +25,7 @@
   <nav class="navbar navbar-expand-lg navbar-nhre" id="mainNav">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center gap-2" href="#home">
-        <span class="brand-mark">NH</span>
-        <span class="brand-name">NHRE<span>.</span></span>
+        <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
       </a>
       <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMain"
         aria-controls="navMain" aria-expanded="false" aria-label="Toggle navigation">
@@ -558,8 +557,7 @@
       <div class="row g-4">
         <div class="col-lg-4">
           <div class="d-flex align-items-center gap-2 mb-3">
-            <span class="brand-mark">NH</span>
-            <span class="brand-name footer-brand-inverse">NHRE<span class="footer-brand-dot">.</span></span>
+            <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img-footer">
           </div>
           <p class="footer-summary">A national initiative connecting every hospital, clinic, laboratory, and pharmacy
             into one secure healthcare exchange.</p>

@@ -16,13 +16,24 @@ $roles = valid_roles();
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("nhre-theme");
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.dataset.theme = t;
+      document.documentElement.style.colorScheme = t;
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body class="auth-body">
   <main class="auth-page">
     <a class="auth-brand" href="index.php" aria-label="Back to NHRE home">
-      <span class="brand-mark">NH</span>
-      <span class="brand-name">NHRE<span>.</span></span>
+      <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
     </a>
 
     <section class="auth-shell container">
@@ -61,6 +72,7 @@ $roles = valid_roles();
               <?php endif; ?>
 
               <form action="auth/register_process.php" method="POST" class="needs-validation auth-form" id="registerForm" novalidate>
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
                 <div class="row g-3">
                   <div class="col-md-6">
                     <div class="form-floating">
@@ -91,6 +103,90 @@ $roles = valid_roles();
                       <input type="tel" class="form-control" id="phone" name="phone" placeholder="+880..." value="<?= e($old['phone'] ?? '') ?>" required pattern="^\+?[0-9][0-9\s().-]{7,19}$">
                       <label for="phone"><i class="fa-solid fa-phone"></i> Phone Number</label>
                       <div class="invalid-feedback">Enter a valid phone number.</div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <input type="text" class="form-control" id="account_number" name="account_number" placeholder="NHRE-1001" value="<?= e($old['account_number'] ?? '') ?>">
+                      <label for="account_number"><i class="fa-solid fa-hashtag"></i> Account Number</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" value="<?= e($old['date_of_birth'] ?? '') ?>">
+                      <label for="date_of_birth"><i class="fa-solid fa-calendar-day"></i> Date of Birth</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <input type="text" class="form-control" id="nationality" name="nationality" placeholder="Bangladeshi" value="<?= e($old['nationality'] ?? '') ?>">
+                      <label for="nationality"><i class="fa-solid fa-globe"></i> Nationality</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <select class="form-select" id="gender" name="gender">
+                        <option value="" <?= empty($old['gender']) ? 'selected' : '' ?>>Select gender</option>
+                        <option value="Male" <?= (($old['gender'] ?? '') === 'Male') ? 'selected' : '' ?>>Male</option>
+                        <option value="Female" <?= (($old['gender'] ?? '') === 'Female') ? 'selected' : '' ?>>Female</option>
+                        <option value="Other" <?= (($old['gender'] ?? '') === 'Other') ? 'selected' : '' ?>>Other</option>
+                      </select>
+                      <label for="gender"><i class="fa-solid fa-venus-mars"></i> Gender</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <select class="form-select" id="blood_group" name="blood_group">
+                        <option value="" <?= empty($old['blood_group']) ? 'selected' : '' ?>>Select blood group</option>
+                        <option value="A+" <?= (($old['blood_group'] ?? '') === 'A+') ? 'selected' : '' ?>>A+</option>
+                        <option value="A-" <?= (($old['blood_group'] ?? '') === 'A-') ? 'selected' : '' ?>>A-</option>
+                        <option value="B+" <?= (($old['blood_group'] ?? '') === 'B+') ? 'selected' : '' ?>>B+</option>
+                        <option value="B-" <?= (($old['blood_group'] ?? '') === 'B-') ? 'selected' : '' ?>>B-</option>
+                        <option value="AB+" <?= (($old['blood_group'] ?? '') === 'AB+') ? 'selected' : '' ?>>AB+</option>
+                        <option value="AB-" <?= (($old['blood_group'] ?? '') === 'AB-') ? 'selected' : '' ?>>AB-</option>
+                        <option value="O+" <?= (($old['blood_group'] ?? '') === 'O+') ? 'selected' : '' ?>>O+</option>
+                        <option value="O-" <?= (($old['blood_group'] ?? '') === 'O-') ? 'selected' : '' ?>>O-</option>
+                      </select>
+                      <label for="blood_group"><i class="fa-solid fa-droplet"></i> Blood Group</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <input type="text" class="form-control" id="emergency_contact" name="emergency_contact" placeholder="+880..." value="<?= e($old['emergency_contact'] ?? '') ?>">
+                      <label for="emergency_contact"><i class="fa-solid fa-phone-volume"></i> Emergency Contact</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <input type="text" class="form-control" id="occupation" name="occupation" placeholder="Engineer" value="<?= e($old['occupation'] ?? '') ?>">
+                      <label for="occupation"><i class="fa-solid fa-briefcase"></i> Occupation</label>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-floating">
+                      <select class="form-select" id="marital_status" name="marital_status">
+                        <option value="" <?= empty($old['marital_status']) ? 'selected' : '' ?>>Select status</option>
+                        <option value="Single" <?= (($old['marital_status'] ?? '') === 'Single') ? 'selected' : '' ?>>Single</option>
+                        <option value="Married" <?= (($old['marital_status'] ?? '') === 'Married') ? 'selected' : '' ?>>Married</option>
+                        <option value="Divorced" <?= (($old['marital_status'] ?? '') === 'Divorced') ? 'selected' : '' ?>>Divorced</option>
+                        <option value="Widowed" <?= (($old['marital_status'] ?? '') === 'Widowed') ? 'selected' : '' ?>>Widowed</option>
+                      </select>
+                      <label for="marital_status"><i class="fa-solid fa-ring"></i> Marital Status</label>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="form-floating">
+                      <textarea class="form-control" id="address" name="address" placeholder="Address" style="min-height: 110px;"><?= e($old['address'] ?? '') ?></textarea>
+                      <label for="address"><i class="fa-solid fa-location-dot"></i> Address</label>
                     </div>
                   </div>
 
@@ -142,6 +238,6 @@ $roles = valid_roles();
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js"></script>
+  <script src="assets/js/app.js?v=20260807-2"></script>
 </body>
 </html>

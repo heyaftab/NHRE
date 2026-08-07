@@ -1,0 +1,27 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# User-generated uploads
+/uploads/profile_pics/*
+!/uploads/profile_pics/.gitkeep
+
+# Runtime and debug output
+*.log
+*.cache
+/tmp/
+
+# Dependencies (if introduced later)
+/vendor/
+/node_modules/
+
+# IDE and editor settings
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
