@@ -164,4 +164,446 @@ function create_notification(int $user_id, string $title, string $message, strin
     }
 }
 
+function ensure_appointments_table_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `appointments` (
+          `appointment_id`   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `patient_id`       INT UNSIGNED NOT NULL,
+          `doctor_id`        INT UNSIGNED NOT NULL,
+          `appointment_date` DATE            NOT NULL,
+          `appointment_time` TIME            NOT NULL,
+          `reason`           TEXT            NOT NULL,
+          `status`           VARCHAR(30)     NOT NULL DEFAULT \'Pending\',
+          `doctor_notes`     TEXT            NULL,
+          `created_at`       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`appointment_id`),
+          KEY `idx_appointments_patient` (`patient_id`),
+          KEY `idx_appointments_doctor` (`doctor_id`),
+          CONSTRAINT `fk_appointments_patient`
+            FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_appointments_doctor`
+            FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    try {
+        db()->exec('CREATE UNIQUE INDEX `uq_appointments_slot` ON `appointments` (`doctor_id`, `appointment_date`, `appointment_time`)');
+    } catch (PDOException $e) {
+    }
+}
+
+function ensure_doctor_profile_columns(): void
+{
+    try {
+        $stmt = db()->query('SHOW COLUMNS FROM users');
+        $cols = [];
+        foreach ($stmt->fetchAll() as $col) {
+            $cols[] = $col['Field'];
+        }
+
+        $add = [];
+        if (!in_array('district', $cols, true)) {
+            $add[] = 'ADD COLUMN `district` VARCHAR(100) NULL DEFAULT NULL';
+        }
+        if (!in_array('hospital_name', $cols, true)) {
+            $add[] = 'ADD COLUMN `hospital_name` VARCHAR(190) NULL DEFAULT NULL';
+        }
+        if (!in_array('specialization', $cols, true)) {
+            $add[] = 'ADD COLUMN `specialization` VARCHAR(100) NULL DEFAULT NULL';
+        }
+        if (!in_array('qualification', $cols, true)) {
+            $add[] = 'ADD COLUMN `qualification` VARCHAR(255) NULL DEFAULT NULL';
+        }
+        if (!in_array('experience_years', $cols, true)) {
+            $add[] = 'ADD COLUMN `experience_years` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('consultation_fee', $cols, true)) {
+            $add[] = 'ADD COLUMN `consultation_fee` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('rating', $cols, true)) {
+            $add[] = 'ADD COLUMN `rating` DECIMAL(2,1) NULL DEFAULT NULL';
+        }
+        if (!in_array('reviews_count', $cols, true)) {
+            $add[] = 'ADD COLUMN `reviews_count` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('district_id', $cols, true)) {
+            $add[] = 'ADD COLUMN `district_id` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('hospital_id', $cols, true)) {
+            $add[] = 'ADD COLUMN `hospital_id` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('specialization_id', $cols, true)) {
+            $add[] = 'ADD COLUMN `specialization_id` INT UNSIGNED NULL DEFAULT NULL';
+        }
+        if (!in_array('bio', $cols, true)) {
+            $add[] = 'ADD COLUMN `bio` TEXT NULL DEFAULT NULL';
+        }
+        if (!in_array('visiting_hours', $cols, true)) {
+            $add[] = 'ADD COLUMN `visiting_hours` VARCHAR(255) NULL DEFAULT NULL';
+        }
+        if (!in_array('awards', $cols, true)) {
+            $add[] = 'ADD COLUMN `awards` TEXT NULL DEFAULT NULL';
+        }
+        if (!in_array('is_featured', $cols, true)) {
+            $add[] = 'ADD COLUMN `is_featured` TINYINT(1) NOT NULL DEFAULT 0';
+        }
+
+        foreach ($add as $sql) {
+            db()->exec('ALTER TABLE users ' . $sql);
+        }
+    } catch (PDOException $e) {
+    }
+}
+
+function ensure_doctor_catalog_tables(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `districts` (
+          `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name`        VARCHAR(100) NOT NULL,
+          `description` VARCHAR(255) NULL DEFAULT NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_districts_name` (`name`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `specializations` (
+          `id`   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name` VARCHAR(120) NOT NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_specializations_name` (`name`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `hospitals` (
+          `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name`          VARCHAR(190) NOT NULL,
+          `district_id`   INT UNSIGNED NULL DEFAULT NULL,
+          `address`       VARCHAR(255) NULL DEFAULT NULL,
+          `phone`         VARCHAR(30) NULL DEFAULT NULL,
+          `email`         VARCHAR(190) NULL DEFAULT NULL,
+          `is_active`     TINYINT(1) NOT NULL DEFAULT 1,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_hospitals_name` (`name`),
+          KEY `idx_hospitals_district` (`district_id`),
+          CONSTRAINT `fk_hospitals_district`
+            FOREIGN KEY (`district_id`) REFERENCES `districts` (`id`) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    try {
+        $districtCount = (int)db()->query('SELECT COUNT(*) FROM districts')->fetchColumn();
+        if ($districtCount === 0) {
+            $districts = ['Dhaka', 'Chattogram', 'Rajshahi', 'Khulna', 'Barishal', 'Sylhet', 'Rangpur', 'Mymensingh'];
+            $stmt = db()->prepare('INSERT INTO districts (name, description) VALUES (?, ?)');
+            foreach ($districts as $district) {
+                $stmt->execute([$district, 'Seeded district']);
+            }
+        }
+
+        $specializationCount = (int)db()->query('SELECT COUNT(*) FROM specializations')->fetchColumn();
+        if ($specializationCount === 0) {
+            $specializations = [
+                'Cardiology', 'Orthopedics', 'Neurology', 'Dermatology', 'Gynecology', 'Pediatrics',
+                'General Medicine', 'General Surgery', 'ENT', 'Ophthalmology', 'Psychiatry', 'Urology',
+                'Gastroenterology', 'Nephrology', 'Endocrinology', 'Oncology', 'Pulmonology', 'Rheumatology',
+                'Hematology', 'Infectious Disease', 'Neurosurgery', 'Cardiothoracic Surgery', 'Plastic Surgery',
+                'Pediatric Surgery', 'Vascular Surgery', 'Oral & Maxillofacial Surgery', 'Anesthesiology', 'Radiology',
+                'Pathology', 'Physical Medicine', 'Rehabilitation', 'Emergency Medicine', 'Family Medicine',
+                'Internal Medicine', 'Dental Surgery', 'Periodontology', 'Prosthodontics', 'Orthodontics', 'Oral Medicine',
+                'Clinical Psychology', 'Nutrition', 'Physiotherapy', 'Pain Medicine', 'Critical Care', 'Sleep Medicine',
+                'Allergy & Immunology', 'Hepatology', 'Neonatology', 'Maternal-Fetal Medicine', 'Sports Medicine', 'Geriatric Medicine'
+            ];
+            $stmt = db()->prepare('INSERT INTO specializations (name) VALUES (?)');
+            foreach ($specializations as $specialization) {
+                $stmt->execute([$specialization]);
+            }
+        }
+
+        $hospitalCount = (int)db()->query('SELECT COUNT(*) FROM hospitals')->fetchColumn();
+        if ($hospitalCount === 0) {
+            $districtRows = db()->query('SELECT id, name FROM districts ORDER BY id')->fetchAll();
+            $districtIds = array_column($districtRows, 'id');
+            $hospitalNames = [
+                'Square Hospital', 'Labaid Specialized Hospital', 'United Hospital', 'Apollo Hospitals', 'Evercare Hospital',
+                'Central Hospital', 'Popular Diagnostic Centre', 'Delta Medical College Hospital', 'Ibn Sina Hospital', 'Holy Family Red Crescent',
+                'Bangladesh Specialized Hospital', 'CMB Hospital', 'Renata Hospital', 'Anwar Khan Modern Medical College Hospital', 'MIR Dental Hospital',
+                'Sunrise Hospital', 'North City Hospital', 'Nightingale Hospital', 'BIRDEM General Hospital', 'Sajida Hospital', 'Ahsania Mission Hospital',
+                'Purbachal General Hospital', 'Dhanmondi Medical Center', 'Gulshan Diagnostic Hospital', 'Banani Clinic', 'Uttara Clinical Services',
+                'Savar Community Hospital', 'Shahbagh Medical Centre', 'Mohakhali Hospital', 'Bogra General Hospital', 'Khulna Medical College Hospital',
+                'Barishal General Hospital', 'Sylhet Womens Medical College Hospital', 'Rangpur Community Hospital', 'Mymensingh General Hospital',
+                'Chattogram Medical Center', 'Comilla General Hospital', 'Noakhali Community Hospital', 'Pabna Diagnostic Center', 'Narayanganj General Hospital'
+            ];
+            $stmt = db()->prepare('INSERT INTO hospitals (name, district_id, address, phone, email) VALUES (?, ?, ?, ?, ?)');
+            foreach ($hospitalNames as $index => $name) {
+                $districtId = $districtIds[$index % count($districtIds)];
+                $districtIndex = array_search($districtId, $districtIds, true);
+                $districtName = $districtIndex !== false ? ($districtRows[$districtIndex]['name'] ?? '') : '';
+                $stmt->execute([
+                    $name,
+                    $districtId,
+                    $name . ', ' . $districtName,
+                    '+880171' . sprintf('%08d', $index + 1000),
+                    strtolower(str_replace(' ', '', $name)) . '@nhre.dev'
+                ]);
+            }
+        }
+
+        $doctorCount = (int)db()->query("SELECT COUNT(*) FROM users WHERE role = 'Doctor'")->fetchColumn();
+        if ($doctorCount < 50) {
+            $districtRows = db()->query('SELECT id, name FROM districts ORDER BY id')->fetchAll();
+            $specializationRows = db()->query('SELECT id, name FROM specializations ORDER BY id')->fetchAll();
+            $hospitalRows = db()->query('SELECT id, name FROM hospitals ORDER BY id')->fetchAll();
+            $firstNames = ['Afsana', 'Arif', 'Nadia', 'Rahim', 'Sadia', 'Tamim', 'Farah', 'Imran', 'Muna', 'Khaled', 'Rafi', 'Shila', 'Nabil', 'Zarin', 'Asif', 'Mahir', 'Tanjin', 'Ruma', 'Sami', 'Jahan', 'Riaz', 'Miftah', 'Sohana', 'Pranto', 'Amina', 'Hasan', 'Mourin', 'Rayhan', 'Tasnima', 'Lamia', 'Nafi', 'Rony', 'Maliha', 'Shuvo', 'Bithi', 'Tareq', 'Mita', 'Ishrat', 'Shafiq', 'Nazia', 'Anik', 'Faria', 'Rifat', 'Moushumi', 'Sajid', 'Prapti', 'Atik', 'Nusrat', 'Maruf', 'Nishat'];
+            $lastNames = ['Ahmed', 'Rahman', 'Hossain', 'Karim', 'Islam', 'Chowdhury', 'Haque', 'Mahmud', 'Akter', 'Ali', 'Sultana', 'Khan', 'Banu', 'Siddique', 'Talukder', 'Mia', 'Noor', 'Begum', 'Das', 'Paul', 'Ferdous', 'Jahan', 'Rafiq', 'Mou', 'Ahamed', 'Yasmin', 'Hassan', 'Chowdhury', 'Hasan', 'Salam'];
+            $qualifications = ['MBBS, FCPS', 'MBBS, MD', 'MBBS, MRCP', 'MBBS, FRCS', 'MBBS, MCPS', 'MBBS, MPH', 'MBBS, DM'];
+            $bios = [
+                'Dedicated clinician focused on preventive care and patient education.',
+                'Known for compassionate care and evidence-based treatment plans.',
+                'Specializes in advanced diagnostics and long-term chronic disease management.',
+                'Committed to accessible care with a strong community health focus.'
+            ];
+            $awards = [
+                'Best Physician Award 2024',
+                'Excellence in Care Award 2023',
+                'National Medical Leadership Award',
+                'Community Health Service Award'
+            ];
+            $visitingHours = ['09:00,10:30,11:30,15:00', '10:00,11:00,14:00,16:00', '09:30,11:00,15:30,17:00', '08:30,10:00,14:30,17:30'];
+            $stmt = db()->prepare(
+                'INSERT INTO users (fullname, nid, email, phone, password_hash, role, gender, address, district, hospital_name, specialization, qualification, experience_years, consultation_fee, rating, reviews_count, district_id, hospital_id, specialization_id, bio, visiting_hours, awards, is_featured)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            for ($index = 1; $index <= 50; $index++) {
+                $firstName = $firstNames[($index - 1) % count($firstNames)];
+                $lastName = $lastNames[($index - 1) % count($lastNames)];
+                $fullname = $firstName . ' ' . $lastName;
+                $specialization = $specializationRows[($index - 1) % count($specializationRows)];
+                $hospital = $hospitalRows[($index - 1) % count($hospitalRows)];
+                $district = $districtRows[($index - 1) % count($districtRows)];
+                $gender = $index % 2 === 0 ? 'Female' : 'Male';
+                $qualification = $qualifications[($index - 1) % count($qualifications)];
+                $experience = 5 + (($index - 1) % 18) + ($index % 3 === 0 ? 3 : 0);
+                $fee = 600 + (($index % 10) * 100) + ($index % 3 === 0 ? 150 : 0);
+                $rating = round(4.2 + (($index % 7) * 0.1), 1);
+                $reviews = 45 + ($index * 7);
+                $stmt->execute([
+                    $fullname,
+                    '100000000' . str_pad((string)$index, 2, '0', STR_PAD_LEFT),
+                    'doctor' . str_pad((string)$index, 3, '0', STR_PAD_LEFT) . '@nhre.dev',
+                    '+88017' . str_pad((string)(10000000 + $index), 8, '0', STR_PAD_LEFT),
+                    password_hash('Doctor123!', PASSWORD_DEFAULT),
+                    'Doctor',
+                    $gender,
+                    $district['name'] . ' Medical Center',
+                    $district['name'],
+                    $hospital['name'],
+                    $specialization['name'],
+                    $qualification,
+                    $experience,
+                    $fee,
+                    $rating,
+                    $reviews,
+                    $district['id'],
+                    $hospital['id'],
+                    $specialization['id'],
+                    $bios[($index - 1) % count($bios)],
+                    $visitingHours[($index - 1) % count($visitingHours)],
+                    $awards[($index - 1) % count($awards)],
+                    $index % 5 === 0 ? 1 : 0
+                ]);
+            }
+
+            $patientCount = (int)db()->query("SELECT COUNT(*) FROM users WHERE email = 'patient@nhre.gov'")->fetchColumn();
+            if ($patientCount === 0) {
+                db()->prepare(
+                    'INSERT INTO users (fullname, nid, email, phone, password_hash, role, gender, address, district, hospital_name, specialization, qualification, experience_years, consultation_fee, rating, reviews_count)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                )->execute([
+                    'Demo Patient',
+                    '2000000000',
+                    'patient@nhre.gov',
+                    '+8801712345678',
+                    password_hash('Patient123!', PASSWORD_DEFAULT),
+                    'Patient',
+                    'Female',
+                    'House 12, Road 4, Dhanmondi',
+                    'Dhaka',
+                    '',
+                    '',
+                    '',
+                    null,
+                    null,
+                    null,
+                    null
+                ]);
+            }
+
+            $patientRow = db()->query("SELECT id FROM users WHERE email = 'patient@nhre.gov' LIMIT 1")->fetch();
+            $patientId = $patientRow ? (int)$patientRow['id'] : 0;
+            if ($patientId > 0) {
+                $appointmentCount = (int)db()->query('SELECT COUNT(*) FROM appointments')->fetchColumn();
+                if ($appointmentCount === 0) {
+                    $doctorRows = db()->query("SELECT id FROM users WHERE role = 'Doctor' ORDER BY id ASC LIMIT 6")->fetchAll();
+                    $sampleAppointments = [
+                        ['Pending', 'Needs follow-up on recurring headache.'],
+                        ['Approved', 'Annual blood pressure review.'],
+                        ['Pending', 'Chest discomfort and shortness of breath.'],
+                        ['Approved', 'Skin rash follow-up appointment.'],
+                        ['Pending', 'Post-surgery recovery review.'],
+                        ['Approved', 'Pediatric fever assessment.']
+                    ];
+                    $insertAppointment = db()->prepare(
+                        'INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, reason, status, doctor_notes)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $date = date('Y-m-d');
+                    $timeSlots = ['09:00:00', '10:30:00', '13:00:00', '15:30:00', '17:00:00', '18:30:00'];
+                    foreach ($doctorRows as $index => $doctorRow) {
+                        $insertAppointment->execute([
+                            $patientId,
+                            (int)$doctorRow['id'],
+                            $date,
+                            $timeSlots[$index % count($timeSlots)],
+                            $sampleAppointments[$index][1],
+                            $sampleAppointments[$index][0],
+                            $index % 2 === 0 ? 'Please bring recent reports.' : ''
+                        ]);
+                    }
+                }
+            }
+        }
+
+        $patientCount = (int)db()->query("SELECT COUNT(*) FROM users WHERE email = 'patient@nhre.gov'")->fetchColumn();
+        if ($patientCount === 0) {
+            db()->prepare(
+                'INSERT INTO users (fullname, nid, email, phone, password_hash, role, gender, address, district, hospital_name, specialization, qualification, experience_years, consultation_fee, rating, reviews_count)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([
+                'Demo Patient',
+                '2000000000',
+                'patient@nhre.gov',
+                '+8801712345678',
+                password_hash('Patient123!', PASSWORD_DEFAULT),
+                'Patient',
+                'Female',
+                'House 12, Road 4, Dhanmondi',
+                'Dhaka',
+                '',
+                '',
+                '',
+                null,
+                null,
+                null,
+                null
+            ]);
+        }
+    } catch (PDOException $e) {
+    }
+}
+
+function get_doctor_time_slots(int $doctor_id, ?string $appointment_date = null, ?string $visiting_hours = null): array
+{
+    $default_slots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
+    $slots = [];
+    if (is_string($visiting_hours) && trim($visiting_hours) !== '') {
+        foreach (preg_split('/[;,]+/', $visiting_hours) as $slot) {
+            $slot = trim($slot);
+            if (preg_match('/^(\d{1,2}):(\d{2})$/', $slot, $matches)) {
+                $hours = (int)$matches[1];
+                $minutes = (int)$matches[2];
+                if ($hours >= 0 && $hours <= 23 && $minutes >= 0 && $minutes <= 59) {
+                    $slots[] = sprintf('%02d:%02d', $hours, $minutes);
+                }
+            }
+        }
+    }
+    if ($slots === []) {
+        $slots = $default_slots;
+    }
+
+    if ($appointment_date !== null && $appointment_date !== '') {
+        $stmt = db()->prepare(
+            'SELECT appointment_time FROM appointments WHERE doctor_id = ? AND appointment_date = ?'
+        );
+        $stmt->execute([$doctor_id, $appointment_date]);
+        $booked = array_column($stmt->fetchAll(), 'appointment_time');
+        $slots = array_values(array_filter($slots, static function (string $slot) use ($booked): bool {
+            return !in_array($slot, $booked, true);
+        }));
+    }
+
+    return $slots;
+}
+
+function ensure_medical_test_tables_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `medical_tests` (
+          `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name`              VARCHAR(190) NOT NULL,
+          `description`       TEXT NULL,
+          `test_type`         VARCHAR(100) NOT NULL,
+          `price`             DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          `place`             VARCHAR(120) NOT NULL,
+          `department`        VARCHAR(120) NULL,
+          `result_time`       VARCHAR(60) NOT NULL,
+          `availability`      TINYINT(1) NOT NULL DEFAULT 1,
+          `home_collection`   TINYINT(1) NOT NULL DEFAULT 0,
+          `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_medical_tests_place` (`place`),
+          KEY `idx_medical_tests_type` (`test_type`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `medical_test_bookings` (
+          `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `test_id`           INT UNSIGNED NOT NULL,
+          `user_id`           INT UNSIGNED NOT NULL,
+          `booking_date`      DATE NOT NULL,
+          `booking_time`      TIME NULL,
+          `status`            VARCHAR(30) NOT NULL DEFAULT \'Pending\',
+          `result_file`       VARCHAR(255) NULL,
+          `result_notes`      TEXT NULL,
+          `result_date`       DATE NULL,
+          `technician_id`     INT UNSIGNED NULL,
+          `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `updated_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_test_bookings_user` (`user_id`),
+          KEY `idx_test_bookings_test` (`test_id`),
+          CONSTRAINT `fk_test_bookings_test`
+            FOREIGN KEY (`test_id`) REFERENCES `medical_tests` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_test_bookings_user`
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_test_bookings_technician`
+            FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    $count = (int)db()->query('SELECT COUNT(*) FROM medical_tests')->fetchColumn();
+    if ($count === 0) {
+        $seed = [
+            ['CBC Test', 'A complete blood count check for overall health screening.', 'Blood Test', 500, 'Dhaka', 'Pathology', 'Same Day', 1, 1],
+            ['Blood Sugar Test', 'Checks fasting and random glucose levels for diabetes screening.', 'Biochemistry', 300, 'Mirpur', 'Lab', 'Same Day', 1, 0],
+            ['Lipid Profile', 'Measures cholesterol and triglyceride levels to assess heart risk.', 'Biochemistry', 700, 'Uttara', 'Biochemistry', '1 Day', 1, 1],
+            ['X-Ray', 'Radiology imaging service for bones and chest evaluation.', 'Imaging', 1200, 'Dhanmondi', 'Radiology', '2 Days', 1, 0],
+            ['COVID/Flu Test', 'Rapid screening for COVID-19 and flu-related symptoms.', 'COVID/Flu Test', 900, 'Banani', 'Pathology', 'Same Day', 1, 1],
+            ['Thyroid Profile', 'Measures thyroid hormones for metabolic and hormonal balance.', 'Hormone Test', 850, 'Gulshan', 'Endocrinology', '1 Day', 1, 0],
+        ];
+
+        $stmt = db()->prepare(
+            'INSERT INTO medical_tests (name, description, test_type, price, place, department, result_time, availability, home_collection) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($seed as $row) {
+            $stmt->execute($row);
+        }
+    }
+}
+
 remember_me_login();
