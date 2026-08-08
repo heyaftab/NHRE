@@ -31,10 +31,55 @@ CREATE TABLE IF NOT EXISTS `users` (
   `marital_status`    VARCHAR(30)      NULL DEFAULT NULL,
   `occupation`        VARCHAR(100)     NULL DEFAULT NULL,
   `profile_photo`     VARCHAR(255)     NULL DEFAULT NULL,
+  `district_id`       INT UNSIGNED     NULL DEFAULT NULL,
+  `hospital_id`       INT UNSIGNED     NULL DEFAULT NULL,
+  `specialization_id` INT UNSIGNED     NULL DEFAULT NULL,
+  `qualification`     VARCHAR(255)     NULL DEFAULT NULL,
+  `experience_years`  INT UNSIGNED     NULL DEFAULT NULL,
+  `consultation_fee`  INT UNSIGNED     NULL DEFAULT NULL,
+  `rating`            DECIMAL(2,1)    NULL DEFAULT NULL,
+  `reviews_count`     INT UNSIGNED     NULL DEFAULT NULL,
+  `bio`               TEXT             NULL DEFAULT NULL,
+  `visiting_hours`    VARCHAR(255)     NULL DEFAULT NULL,
+  `awards`            TEXT             NULL DEFAULT NULL,
+  `is_featured`       TINYINT(1)       NOT NULL DEFAULT 0,
   `created_at`        TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_nid`    (`nid`),
   UNIQUE KEY `uq_users_email`  (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Doctor catalog and appointment discovery tables
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `districts` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`        VARCHAR(100) NOT NULL,
+  `description` VARCHAR(255) NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_districts_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `specializations` (
+  `id`   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(120) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_specializations_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `hospitals` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`          VARCHAR(190) NOT NULL,
+  `district_id`   INT UNSIGNED NULL DEFAULT NULL,
+  `address`       VARCHAR(255) NULL DEFAULT NULL,
+  `phone`         VARCHAR(30) NULL DEFAULT NULL,
+  `email`         VARCHAR(190) NULL DEFAULT NULL,
+  `is_active`     TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_hospitals_name` (`name`),
+  KEY `idx_hospitals_district` (`district_id`),
+  CONSTRAINT `fk_hospitals_district`
+    FOREIGN KEY (`district_id`) REFERENCES `districts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
@@ -162,7 +207,8 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   CONSTRAINT `fk_appointments_patient`
     FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_appointments_doctor`
-    FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  UNIQUE KEY `uq_appointments_slot` (`doctor_id`, `appointment_date`, `appointment_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------

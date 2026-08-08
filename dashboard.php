@@ -12,17 +12,125 @@ $success = session_pull('success');
 $today = date('Y-m-d');
 $appointment_statuses = ['Pending', 'Approved', 'Completed', 'Cancelled', 'Rejected'];
 $doctor_list = [];
+$selected_doctor = null;
 $appointments = [];
+$doctor_accounts = [];
 $filter_patient = trim((string)($_GET['patient'] ?? ''));
 $filter_doctor = (int)($_GET['doctor'] ?? 0);
 $filter_status = trim((string)($_GET['status'] ?? ''));
 $filter_date = trim((string)($_GET['date'] ?? ''));
+$doctor_search = trim((string)($_GET['doctor_search'] ?? ''));
+$doctor_district = trim((string)($_GET['doctor_district'] ?? ''));
+$doctor_hospital = trim((string)($_GET['doctor_hospital'] ?? ''));
+$doctor_specialization = trim((string)($_GET['doctor_specialization'] ?? ''));
+$selected_doctor_id = (int)($_GET['doctor_id'] ?? 0);
+$show_all_doctors = isset($_GET['view_all_doctors']) && $_GET['view_all_doctors'] === '1';
 
 try {
+    ensure_doctor_profile_columns();
+    ensure_doctor_catalog_tables();
+
     if ($role === 'Patient') {
-        $stmt = db()->prepare('SELECT id, fullname FROM users WHERE role = ? ORDER BY fullname ASC');
+        $stmt = db()->prepare(
+            'SELECT u.id, u.fullname, u.district, u.hospital_name, u.specialization, u.qualification, u.experience_years, u.consultation_fee, u.rating, u.reviews_count, u.address, u.bio, u.visiting_hours, u.awards, u.is_featured,
+                    d.name AS district_name, h.name AS hospital_name_db, s.name AS specialization_name
+             FROM users u
+             LEFT JOIN districts d ON d.id = u.district_id
+             LEFT JOIN hospitals h ON h.id = u.hospital_id
+             LEFT JOIN specializations s ON s.id = u.specialization_id
+             WHERE u.role = ?
+             ORDER BY u.fullname ASC'
+        );
         $stmt->execute(['Doctor']);
-        $doctor_list = $stmt->fetchAll();
+        $doctor_rows = $stmt->fetchAll();
+
+        $doctor_list = array_map(function (array $doctor): array {
+            $doctor['district'] = $doctor['district'] ?: ($doctor['district_name'] ?? '');
+            $doctor['hospital_name'] = $doctor['hospital_name'] ?: ($doctor['hospital_name_db'] ?? '');
+            $doctor['specialization'] = $doctor['specialization'] ?: ($doctor['specialization_name'] ?? '');
+            return $doctor;
+        }, $doctor_rows);
+
+        $doctor_min_rating = (float)($_GET['doctor_min_rating'] ?? 0);
+        $doctor_min_experience = (int)($_GET['doctor_min_experience'] ?? 0);
+        $doctor_min_fee = (int)($_GET['doctor_min_fee'] ?? 0);
+        $doctor_max_fee = (int)($_GET['doctor_max_fee'] ?? 0);
+
+        if ($doctor_search !== '') {
+            $needle = '%' . $doctor_search . '%';
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($needle): bool {
+                return strpos((string)($doctor['fullname'] ?? ''), $doctor_search) !== false
+                    || strpos((string)($doctor['specialization'] ?? ''), $doctor_search) !== false
+                    || strpos((string)($doctor['hospital_name'] ?? ''), $doctor_search) !== false
+                    || strpos((string)($doctor['district'] ?? ''), $doctor_search) !== false;
+            }));
+        }
+        if ($doctor_district !== '') {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_district): bool {
+                return (string)($doctor['district'] ?? '') === $doctor_district;
+            }));
+        }
+        if ($doctor_hospital !== '') {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_hospital): bool {
+                return (string)($doctor['hospital_name'] ?? '') === $doctor_hospital;
+            }));
+        }
+        if ($doctor_specialization !== '') {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_specialization): bool {
+                return (string)($doctor['specialization'] ?? '') === $doctor_specialization;
+            }));
+        }
+        if ($doctor_min_rating > 0) {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_rating): bool {
+                return (float)($doctor['rating'] ?? 0) >= $doctor_min_rating;
+            }));
+        }
+        if ($doctor_min_experience > 0) {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_experience): bool {
+                return (int)($doctor['experience_years'] ?? 0) >= $doctor_min_experience;
+            }));
+        }
+        if ($doctor_min_fee > 0) {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_fee): bool {
+                return (int)($doctor['consultation_fee'] ?? 0) >= $doctor_min_fee;
+            }));
+        }
+        if ($doctor_max_fee > 0) {
+            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_max_fee): bool {
+                return (int)($doctor['consultation_fee'] ?? 0) <= $doctor_max_fee;
+            }));
+        }
+
+        if ($selected_doctor_id > 0) {
+            foreach ($doctor_list as $doctor) {
+                if ((int)$doctor['id'] === $selected_doctor_id) {
+                    $selected_doctor = $doctor;
+                    break;
+                }
+            }
+        }
+
+        $featured_doctors = array_values(array_filter($doctor_rows, static function ($doctor): bool {
+            return !empty($doctor['rating']) || !empty($doctor['reviews_count']) || !empty($doctor['experience_years']);
+        }));
+        usort($featured_doctors, function ($a, $b): int {
+            $ratingDiff = ((float)($b['rating'] ?? 0) - (float)($a['rating'] ?? 0));
+            if ($ratingDiff !== 0.0) {
+                return $ratingDiff > 0 ? 1 : -1;
+            }
+            $reviewDiff = ((int)($b['reviews_count'] ?? 0) - (int)($a['reviews_count'] ?? 0));
+            if ($reviewDiff !== 0) {
+                return $reviewDiff > 0 ? 1 : -1;
+            }
+            return ((int)($b['experience_years'] ?? 0) - (int)($a['experience_years'] ?? 0));
+        });
+        $featured_doctors = array_slice($featured_doctors, 0, 3);
+        foreach ($featured_doctors as &$featured) {
+            $featured['district'] = $featured['district'] ?: ($featured['district_name'] ?? '');
+            $featured['hospital_name'] = $featured['hospital_name'] ?: ($featured['hospital_name_db'] ?? '');
+            $featured['specialization'] = $featured['specialization'] ?: ($featured['specialization_name'] ?? '');
+        }
+        unset($featured);
 
         $stmt = db()->prepare(
             'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.reason, a.status, a.doctor_notes, u.fullname AS doctor_name
@@ -33,6 +141,10 @@ try {
         );
         $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
         $appointments = $stmt->fetchAll();
+
+        $doctor_accounts_stmt = db()->prepare('SELECT id, fullname, email FROM users WHERE role = ? ORDER BY id ASC');
+        $doctor_accounts_stmt->execute(['Doctor']);
+        $doctor_accounts = $doctor_accounts_stmt->fetchAll();
     } elseif ($role === 'Doctor') {
         $stmt = db()->prepare(
             'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.reason, a.status, a.doctor_notes, u.fullname AS patient_name
@@ -111,6 +223,17 @@ try {
       document.documentElement.style.colorScheme = t;
     } catch (e) {}
   })();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (location.hash === '#doctor-profile') {
+      var profileSection = document.getElementById('doctor-profile');
+      if (profileSection) {
+        setTimeout(function () {
+          profileSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      }
+    }
+  });
 </script>
 </head>
 <body class="dashboard-body">
@@ -266,38 +389,231 @@ try {
           <div class="row g-4 mt-3">
             <div class="col-lg-5">
               <article class="dashboard-card">
-                <div class="dashboard-card-icon"><i class="fa-solid fa-calendar-plus"></i></div>
-                <h2>Book Appointment</h2>
-                <p>Choose a doctor, date, time, and reason to request a new consultation.</p>
-                <form action="auth/appointment_book_process.php" method="POST" class="mt-3">
-                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <div class="dashboard-card-icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+                <h2>Find a Doctor</h2>
+                <form action="dashboard.php#appointments" method="GET" class="mt-3">
+                  <input type="hidden" name="doctor_id" value="<?= e($selected_doctor_id) ?>">
                   <div class="mb-3">
-                    <label class="form-label">Doctor</label>
-                    <select class="form-select" name="doctor_id" required>
-                      <option value="">Select a doctor</option>
-                      <?php foreach ($doctor_list as $doctor): ?>
-                        <option value="<?= e($doctor['id']) ?>"><?= e($doctor['fullname']) ?></option>
+                    <label class="form-label">Search doctor</label>
+                    <input type="text" class="form-control" name="doctor_search" value="<?= e($doctor_search) ?>" placeholder="Name, specialty, hospital or district">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">District</label>
+                    <select class="form-select" name="doctor_district">
+                      <option value="">All districts</option>
+                      <?php $districts = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['district'] ?? ''); }, $doctor_list)))); sort($districts); foreach ($districts as $district): ?>
+                        <option value="<?= e($district) ?>" <?= $doctor_district === $district ? 'selected' : '' ?>><?= e($district) ?></option>
                       <?php endforeach; ?>
                     </select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Appointment Date</label>
-                    <input type="date" class="form-control" name="appointment_date" min="<?= e($today) ?>" required>
+                    <label class="form-label">Hospital</label>
+                    <select class="form-select" name="doctor_hospital">
+                      <option value="">All hospitals</option>
+                      <?php $hospitals = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['hospital_name'] ?? ''); }, $doctor_list)))); sort($hospitals); foreach ($hospitals as $hospital): ?>
+                        <option value="<?= e($hospital) ?>" <?= $doctor_hospital === $hospital ? 'selected' : '' ?>><?= e($hospital) ?></option>
+                      <?php endforeach; ?>
+                    </select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Appointment Time</label>
-                    <input type="time" class="form-control" name="appointment_time" required>
+                    <label class="form-label">Specialization</label>
+                    <select class="form-select" name="doctor_specialization">
+                      <option value="">All specializations</option>
+                      <?php $specials = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['specialization'] ?? ''); }, $doctor_list)))); sort($specials); foreach ($specials as $special): ?>
+                        <option value="<?= e($special) ?>" <?= $doctor_specialization === $special ? 'selected' : '' ?>><?= e($special) ?></option>
+                      <?php endforeach; ?>
+                    </select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Reason for Visit</label>
-                    <textarea class="form-control" name="reason" rows="4" maxlength="1000" required></textarea>
+                    <label class="form-label">Minimum rating</label>
+                    <select class="form-select" name="doctor_min_rating">
+                      <option value="0">Any rating</option>
+                      <option value="4.5" <?= (float)($doctor_min_rating ?? 0) === 4.5 ? 'selected' : '' ?>>4.5+</option>
+                      <option value="4.0" <?= (float)($doctor_min_rating ?? 0) === 4.0 ? 'selected' : '' ?>>4.0+</option>
+                      <option value="3.5" <?= (float)($doctor_min_rating ?? 0) === 3.5 ? 'selected' : '' ?>>3.5+</option>
+                    </select>
                   </div>
-                  <button type="submit" class="btn btn-solid-nhre w-100">Submit Appointment</button>
+                  <div class="mb-3">
+                    <label class="form-label">Minimum experience</label>
+                    <select class="form-select" name="doctor_min_experience">
+                      <option value="0">Any</option>
+                      <option value="5" <?= (int)($doctor_min_experience ?? 0) === 5 ? 'selected' : '' ?>>5+ years</option>
+                      <option value="10" <?= (int)($doctor_min_experience ?? 0) === 10 ? 'selected' : '' ?>>10+ years</option>
+                      <option value="15" <?= (int)($doctor_min_experience ?? 0) === 15 ? 'selected' : '' ?>>15+ years</option>
+                    </select>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-6">
+                      <label class="form-label">Min fee</label>
+                      <input type="number" class="form-control" name="doctor_min_fee" value="<?= e($doctor_min_fee ?? 0) ?>" min="0">
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label">Max fee</label>
+                      <input type="number" class="form-control" name="doctor_max_fee" value="<?= e($doctor_max_fee ?? 0) ?>" min="0">
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-solid-nhre flex-grow-1">Apply Filters</button>
+                    <a href="dashboard.php#appointments" class="btn btn-outline-secondary">Clear</a>
+                  </div>
                 </form>
+                <div class="mt-3">
+                  <small class="text-muted">Showing <?= count($doctor_list) ?> doctor(s).</small>
+                </div>
               </article>
             </div>
 
             <div class="col-lg-7">
+              <article class="dashboard-card">
+                <div class="dashboard-card-icon"><i class="fa-solid fa-user-doctor"></i></div>
+                <h2>Doctor Results</h2>
+                <div class="list-group mt-3">
+                  <?php if ($doctor_list): ?>
+                    <?php foreach ($doctor_list as $doctor): ?>
+                      <div class="list-group-item d-flex flex-column flex-lg-row justify-content-between gap-3">
+                        <div>
+                          <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
+                          <div class="text-muted small"><?= e($doctor['specialization'] ?: 'General Physician') ?></div>
+                          <div class="text-muted small"><?= e($doctor['qualification'] ?: 'Qualified doctor') ?></div>
+                          <div class="text-muted small"><?= e($doctor['hospital_name'] ?: 'Hospital not listed') ?> • <?= e($doctor['district'] ?: 'Location not listed') ?></div>
+                          <div class="text-muted small">Experience: <?= e($doctor['experience_years'] ?? 'N/A') ?> years • Fee: <?= e($doctor['consultation_fee'] ?? 'N/A') ?> </div>
+                        </div>
+                        <div class="d-flex gap-2 align-items-start">
+                          <a href="dashboard.php?doctor_id=<?= e($doctor['id']) ?>#doctor-profile" class="btn btn-outline-primary btn-sm">View Profile</a>
+                          <a href="dashboard.php?doctor_id=<?= e($doctor['id']) ?>#doctor-profile" class="btn btn-solid-nhre btn-sm">Book</a>
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <div class="text-muted">No doctors found for your current filters.</div>
+                  <?php endif; ?>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="row g-4 mt-3">
+            <div class="col-12">
+              <article class="dashboard-card" id="doctor-profile">
+                <div class="dashboard-card-icon"><i class="fa-solid fa-notes-medical"></i></div>
+                <h2>Doctor Profile</h2>
+                <?php if ($selected_doctor): ?>
+                  <div class="row g-4 mt-2">
+                    <div class="col-lg-7">
+                      <h4><?= e($selected_doctor['fullname']) ?></h4>
+                      <p class="mb-2"><strong><?= e($selected_doctor['specialization'] ?: 'General Physician') ?></strong></p>
+                      <p class="mb-2">Qualification: <?= e($selected_doctor['qualification'] ?: 'Not listed') ?></p>
+                      <p class="mb-2">Hospital: <?= e($selected_doctor['hospital_name'] ?: 'Not listed') ?></p>
+                      <p class="mb-2">Location: <?= e($selected_doctor['district'] ?: 'Not listed') ?> • <?= e($selected_doctor['address'] ?: 'Address not listed') ?></p>
+                      <p class="mb-2">Experience: <?= e($selected_doctor['experience_years'] ?? 'N/A') ?> years</p>
+                      <p class="mb-2">Consultation Fee: <?= e($selected_doctor['consultation_fee'] ?? 'N/A') ?></p>
+                      <p class="mb-2">Rating: <?= e($selected_doctor['rating'] ?? 'N/A') ?> (<?= e($selected_doctor['reviews_count'] ?? '0') ?> reviews)</p>
+                      <p class="mb-2">Visiting Hours: <?= e($selected_doctor['visiting_hours'] ?: 'Daily clinic availability shared on request') ?></p>
+                      <?php if (!empty($selected_doctor['bio'])): ?><p class="mb-2">Bio: <?= e($selected_doctor['bio']) ?></p><?php endif; ?>
+                      <?php if (!empty($selected_doctor['awards'])): ?><p class="mb-2">Awards: <?= e($selected_doctor['awards']) ?></p><?php endif; ?>
+                    </div>
+                    <div class="col-lg-5">
+                      <form action="auth/appointment_book_process.php" method="POST">
+                        <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                        <input type="hidden" name="doctor_id" value="<?= e($selected_doctor['id']) ?>">
+                        <div class="mb-3">
+                          <label class="form-label">Appointment Date</label>
+                          <input type="date" class="form-control" name="appointment_date" min="<?= e($today) ?>" required>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Appointment Time</label>
+                          <select class="form-select" name="appointment_time" required>
+                            <?php foreach (get_doctor_time_slots((int)$selected_doctor['id'], null, (string)($selected_doctor['visiting_hours'] ?? '')) as $slot): ?>
+                              <option value="<?= e($slot) ?>"><?= e($slot) ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Reason for Visit</label>
+                          <textarea class="form-control" name="reason" rows="4" maxlength="1000" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-solid-nhre w-100">Book Appointment</button>
+                      </form>
+                    </div>
+                  </div>
+                <?php else: ?>
+                  <div class="row g-3 mt-2">
+                    <?php foreach ($featured_doctors as $featured): ?>
+                      <div class="col-md-4">
+                        <div class="border rounded p-3 h-100">
+                          <div class="fw-semibold"><?= e($featured['fullname']) ?></div>
+                          <div class="text-muted small"><?= e($featured['specialization'] ?: 'General Physician') ?></div>
+                          <div class="text-muted small">⭐ <?= e($featured['rating'] ?? '4.5') ?> (<?= e($featured['reviews_count'] ?? '0') ?> reviews)</div>
+                          <div class="text-muted small"><?= e($featured['hospital_name'] ?: 'Hospital not listed') ?></div>
+                          <div class="text-muted small"><?= e($featured['district'] ?: 'Location not listed') ?></div>
+                          <div class="text-muted small">Fee: <?= e($featured['consultation_fee'] ?? 'N/A') ?></div>
+                          <a href="dashboard.php?doctor_id=<?= e($featured['id']) ?>#doctor-profile" class="btn btn-outline-primary btn-sm mt-2">View Profile</a>
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="text-muted">Select a doctor from the results to view their profile and book an appointment.</div>
+                    <a href="dashboard.php?view_all_doctors=1#doctor-profile" class="btn btn-outline-secondary btn-sm">View all doctors</a>
+                  </div>
+                  <?php if ($show_all_doctors): ?>
+                    <div class="mt-4">
+                      <h5>All Doctors</h5>
+                      <div class="list-group mt-2">
+                        <?php foreach ($doctor_list as $doctor): ?>
+                          <div class="list-group-item d-flex flex-column flex-lg-row justify-content-between gap-3">
+                            <div>
+                              <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
+                              <div class="text-muted small"><?= e($doctor['specialization'] ?: 'General Physician') ?></div>
+                              <div class="text-muted small"><?= e($doctor['hospital_name'] ?: 'Hospital not listed') ?> • <?= e($doctor['district'] ?: 'Location not listed') ?></div>
+                              <div class="text-muted small">Experience: <?= e($doctor['experience_years'] ?? 'N/A') ?> years • Fee: <?= e($doctor['consultation_fee'] ?? 'N/A') ?></div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-start">
+                              <a href="dashboard.php?doctor_id=<?= e($doctor['id']) ?>&view_all_doctors=1#doctor-profile" class="btn btn-outline-primary btn-sm">View Profile</a>
+                              <a href="dashboard.php?doctor_id=<?= e($doctor['id']) ?>&view_all_doctors=1#doctor-profile" class="btn btn-solid-nhre btn-sm">Book</a>
+                            </div>
+                          </div>
+                        <?php endforeach; ?>
+                      </div>
+                    </div>
+                  <?php endif; ?>
+                <?php endif; ?>
+              </article>
+            </div>
+          </div>
+
+          <div class="row g-4 mt-3">
+            <div class="col-12">
+              <article class="dashboard-card">
+                <div class="dashboard-card-icon"><i class="fa-solid fa-key"></i></div>
+                <h2>Doctor Login Access</h2>
+                <p>Use these demo doctor accounts to test the doctor portal and pending appointment management.</p>
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm align-middle">
+                    <thead>
+                      <tr>
+                        <th>Doctor</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($doctor_accounts as $doctor_account): ?>
+                        <tr>
+                          <td><?= e($doctor_account['fullname']) ?></td>
+                          <td><?= e($doctor_account['email']) ?></td>
+                          <td>Doctor123!</td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="row g-4 mt-3">
+            <div class="col-12">
               <article class="dashboard-card">
                 <div class="dashboard-card-icon"><i class="fa-solid fa-clock"></i></div>
                 <h2>My Appointments</h2>

@@ -50,10 +50,27 @@ if ($errors) {
 }
 
 try {
-    $stmt = db()->prepare('SELECT id FROM users WHERE id = ? AND role = ? LIMIT 1');
+    ensure_doctor_profile_columns();
+    ensure_doctor_catalog_tables();
+
+    $stmt = db()->prepare('SELECT id, visiting_hours FROM users WHERE id = ? AND role = ? LIMIT 1');
     $stmt->execute([$doctor_id, 'Doctor']);
-    if (!$stmt->fetch()) {
+    $doctor = $stmt->fetch();
+    if (!$doctor) {
         $_SESSION['errors'] = ['Selected doctor is not available.'];
+        redirect('../dashboard.php#appointments');
+    }
+
+    $available_slots = get_doctor_time_slots($doctor_id, $appointment_date, $doctor['visiting_hours'] ?? '');
+    if (!in_array($appointment_time, $available_slots, true)) {
+        $_SESSION['errors'] = ['The selected time is not available for this doctor. Please choose another slot.'];
+        redirect('../dashboard.php#appointments');
+    }
+
+    $stmt = db()->prepare('SELECT appointment_id FROM appointments WHERE doctor_id = ? AND appointment_date = ? AND appointment_time = ? LIMIT 1');
+    $stmt->execute([$doctor_id, $appointment_date, $appointment_time]);
+    if ($stmt->fetch()) {
+        $_SESSION['errors'] = ['This time slot has already been booked. Please choose another time.'];
         redirect('../dashboard.php#appointments');
     }
 
