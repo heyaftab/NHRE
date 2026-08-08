@@ -1,6 +1,6 @@
 # NHRE — National Healthcare Record Exchange
 
-NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landing page and an authenticated workspace for patients and healthcare roles, with account management, notifications, vaccination/report viewing, pharmacy information, and blood donation workflows.
+NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landing page and an authenticated workspace for patients and healthcare roles, with account management, appointments, medical-test bookings, notifications, vaccination/report viewing, pharmacy information, and blood donation workflows.
 
 > This repository is a demonstration project, not a production-ready electronic health record system. The claims and statistics on the landing page are presentation content, and the application should not be used for real patient data without a full security, privacy, and regulatory review.
 
@@ -10,7 +10,9 @@ NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landin
 - Login sessions, CSRF protection, password hashing, failed-login throttling, and optional remember-me tokens
 - Profile management with optional profile-photo uploads (maximum 2 MB)
 - In-app notifications with unread counts and a mark-all-read action
-- Vaccination page backed by patient-specific `doctor_reports`
+- Appointment scheduling: patients can find doctors and book or cancel appointments; doctors can manage assigned appointments; Hospital Admins can oversee them
+- Medical-test marketplace with filtering, bookings, lab-technician status updates, and result-file uploads
+- Vaccination schedule interface and patient-specific doctor-report viewing
 - Pharmacy information and medicine catalogue interface
 - Blood donor registration, blood requests, donor directory, and donor eligibility tracking
 - Password reset links generated in the application for local development
@@ -39,13 +41,17 @@ NHRE/
 ├── database/
 │   └── nhre.sql                  # Database schema and optional demo user
 ├── uploads/profile_pics/         # Created automatically after a photo upload
+├── uploads/test_results/         # Lab-result files; created automatically when needed
 ├── index.php                     # Public landing page
 ├── dashboard.php                 # Authenticated home
 ├── profile.php                   # Profile view and editor
 ├── notifications.php             # Notification list
+├── appointments.php              # Doctor discovery and appointment management
+├── medical_tests.php             # Medical-test catalogue and bookings
 ├── vaccination.php               # Vaccination/doctor reports
 ├── pharmacy.php                  # Pharmacy module
 ├── blood_donation.php            # Donor and blood-request workflows
+├── admin_credentials.php         # Hospital Admin account credential view
 └── test.php                      # Local setup diagnostic
 ```
 
@@ -63,6 +69,8 @@ NHRE/
    ```bash
    /Applications/XAMPP/xamppfiles/bin/mysql -u root < database/nhre.sql
    ```
+
+   The application can also create the appointment and medical-test tables at runtime when those modules are first opened. Importing the schema remains the recommended setup path because it creates the complete database structure up front.
 
 4. Confirm the connection values in [`config/database.php`](config/database.php). The included defaults are:
 
@@ -117,17 +125,18 @@ This prototype does not send email. After a valid email is submitted at `forgot_
 
 ## Data and role notes
 
-- The schema creates `users`, `login_attempts`, `auth_tokens`, `password_resets`, `blood_donors`, `blood_requests`, `doctor_reports`, and `notifications`.
-- Registration records a role, but most authenticated pages are currently shared across roles.
-- Hospital-only donor controls are shown conditionally in the interface; server-side role authorization should be strengthened before deployment.
+- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`.
+- Registration supports Patient, Doctor, Pharmacist, Lab Technician, and Hospital Admin roles. The appointment and medical-test workflows expose additional role-specific actions; other authenticated pages remain shared across roles.
+- Hospital-only donor controls and appointment administration are shown conditionally in the interface; server-side role authorization should be strengthened before deployment.
 - The pharmacy catalogue is currently interface/demo data rather than a database-backed prescription workflow.
-- Vaccination entries and notifications require records to be inserted into their respective database tables; there is no administrative creation interface yet.
+- Vaccination schedules are currently static reference content. Doctor reports and notifications require records to be inserted into their respective database tables; there is no administrative creation interface for doctor reports yet.
+- Medical-test catalogue entries are seeded with demo data if the catalogue is empty. Lab result files are stored under `uploads/test_results/` and should be treated as untrusted uploads.
 
 ## Security checklist before deployment
 
 - Serve the site only over HTTPS and use secure environment-specific database credentials.
 - Add strict server-side authorization checks to every privileged action.
-- Validate uploaded images from file contents, store uploads outside the public web root, and disable script execution in upload directories.
+- Validate profile photos and laboratory-result files from file contents, store uploads outside the public web root, and disable script execution in upload directories.
 - Replace the on-screen password-reset link with email delivery.
 - Add audit logging, consent enforcement, data encryption, retention rules, backups, and regulatory review.
 - Remove `test.php`, disable PHP error display, and add appropriate security headers.
@@ -141,7 +150,7 @@ Lint every PHP file:
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-For a manual smoke test, import the schema, register a user, log in, edit the profile, register as a donor, submit a blood request, and test logout and password reset.
+For a manual smoke test, import the schema, register a user, log in, edit the profile, book and manage an appointment using the relevant roles, create a medical-test booking, register as a donor, submit a blood request, and test logout and password reset.
 
 ## License
 
