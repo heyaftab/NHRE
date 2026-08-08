@@ -3,18 +3,18 @@ require_once __DIR__ . '/auth_check.php';
 ensure_appointments_table_exists();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 if (!csrf_check($_POST['_csrf'] ?? null)) {
     $_SESSION['errors'] = ['Security token expired. Please try again.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 $user_id = (int)($_SESSION['user_id'] ?? 0);
 $role = $_SESSION['role'] ?? '';
 if ($user_id <= 0 || $role !== 'Patient') {
-    redirect('../dashboard.php');
+    redirect('../appointments.php');
 }
 
 $doctor_id = (int)($_POST['doctor_id'] ?? 0);
@@ -46,7 +46,7 @@ if ($reason === '') {
 
 if ($errors) {
     $_SESSION['errors'] = $errors;
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 try {
@@ -58,20 +58,20 @@ try {
     $doctor = $stmt->fetch();
     if (!$doctor) {
         $_SESSION['errors'] = ['Selected doctor is not available.'];
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     $available_slots = get_doctor_time_slots($doctor_id, $appointment_date, $doctor['visiting_hours'] ?? '');
     if (!in_array($appointment_time, $available_slots, true)) {
         $_SESSION['errors'] = ['The selected time is not available for this doctor. Please choose another slot.'];
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     $stmt = db()->prepare('SELECT appointment_id FROM appointments WHERE doctor_id = ? AND appointment_date = ? AND appointment_time = ? LIMIT 1');
     $stmt->execute([$doctor_id, $appointment_date, $appointment_time]);
     if ($stmt->fetch()) {
         $_SESSION['errors'] = ['This time slot has already been booked. Please choose another time.'];
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     $stmt = db()->prepare(
@@ -88,8 +88,8 @@ try {
     );
 
     $_SESSION['success'] = 'Appointment request submitted successfully.';
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 } catch (PDOException $e) {
     $_SESSION['errors'] = ['Unable to book the appointment. Please try again later.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }

@@ -3,12 +3,12 @@ require_once __DIR__ . '/auth_check.php';
 ensure_appointments_table_exists();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 if (!csrf_check($_POST['_csrf'] ?? null)) {
     $_SESSION['errors'] = ['Security token expired. Please try again.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 $user_id = (int)($_SESSION['user_id'] ?? 0);
@@ -17,12 +17,12 @@ $appointment_id = (int)($_POST['appointment_id'] ?? 0);
 
 if ($role !== 'Patient' || $user_id <= 0) {
     $_SESSION['errors'] = ['You do not have permission to cancel this appointment.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 if ($appointment_id <= 0) {
     $_SESSION['errors'] = ['Invalid appointment request.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 try {
@@ -32,12 +32,12 @@ try {
 
     if (!$appointment) {
         $_SESSION['errors'] = ['Appointment not found or access denied.'];
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     if (!in_array($appointment['status'], ['Pending', 'Approved'], true)) {
         $_SESSION['errors'] = ['Only pending or approved appointments may be cancelled.'];
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     $stmt = db()->prepare('UPDATE appointments SET status = ? WHERE appointment_id = ?');
@@ -51,8 +51,8 @@ try {
     );
 
     $_SESSION['success'] = 'Appointment cancelled successfully.';
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 } catch (PDOException $e) {
     $_SESSION['errors'] = ['Unable to cancel the appointment. Please try again later.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }

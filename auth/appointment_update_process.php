@@ -3,12 +3,12 @@ require_once __DIR__ . '/auth_check.php';
 ensure_appointments_table_exists();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 if (!csrf_check($_POST['_csrf'] ?? null)) {
     $_SESSION['errors'] = ['Security token expired. Please try again.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 $user_id = (int)($_SESSION['user_id'] ?? 0);
@@ -21,7 +21,7 @@ $status = trim((string)($_POST['status'] ?? ''));
 $allowed_statuses = ['Pending', 'Approved', 'Completed', 'Cancelled', 'Rejected'];
 if ($appointment_id <= 0) {
     $_SESSION['errors'] = ['Invalid appointment request.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
 
 try {
@@ -31,17 +31,17 @@ try {
         $appointment = $stmt->fetch();
         if (!$appointment) {
             $_SESSION['errors'] = ['Appointment not found or access denied.'];
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         if ($action === 'delete') {
             $_SESSION['errors'] = ['Doctors cannot delete appointments.'];
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         if ($status !== '' && !in_array($status, ['Approved', 'Rejected', 'Completed'], true)) {
             $_SESSION['errors'] = ['Invalid appointment action.'];
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         if ($status !== '') {
@@ -60,7 +60,7 @@ try {
             $_SESSION['success'] = 'Doctor notes saved successfully.';
         }
 
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     if ($role === 'Hospital Admin') {
@@ -69,7 +69,7 @@ try {
         $appointment = $stmt->fetch();
         if (!$appointment) {
             $_SESSION['errors'] = ['Appointment not found.'];
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         if ($action === 'delete') {
@@ -90,12 +90,12 @@ try {
             );
 
             $_SESSION['success'] = 'Appointment deleted successfully.';
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         if (!in_array($status, $allowed_statuses, true)) {
             $_SESSION['errors'] = ['Invalid appointment status.'];
-            redirect('../dashboard.php#appointments');
+            redirect('../appointments.php');
         }
 
         $updateStmt = db()->prepare('UPDATE appointments SET status = ?, doctor_notes = ? WHERE appointment_id = ?');
@@ -109,12 +109,12 @@ try {
         );
 
         $_SESSION['success'] = 'Appointment updated successfully.';
-        redirect('../dashboard.php#appointments');
+        redirect('../appointments.php');
     }
 
     $_SESSION['errors'] = ['You do not have permission to update appointments.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 } catch (PDOException $e) {
     $_SESSION['errors'] = ['Unable to update appointment. Please try again later.'];
-    redirect('../dashboard.php#appointments');
+    redirect('../appointments.php');
 }
