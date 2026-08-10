@@ -6,11 +6,18 @@
     const toggle = document.querySelector('.sidebar-toggle');
     const collapse = document.querySelector('.sidebar-collapse');
     const backdrop = document.querySelector('.sidebar-backdrop');
+    let sidebarCloseTimer;
     body.classList.add('has-sidebar');
 
     const setMobileOpen = (open) => {
-      body.classList.toggle('sidebar-open', open);
-      if (backdrop) backdrop.hidden = !open;
+      if (backdrop && open) {
+        window.clearTimeout(sidebarCloseTimer);
+        backdrop.hidden = false;
+        requestAnimationFrame(() => body.classList.add('sidebar-open'));
+      } else {
+        body.classList.remove('sidebar-open');
+        if (backdrop) sidebarCloseTimer = window.setTimeout(() => { backdrop.hidden = true; }, 260);
+      }
       if (toggle) toggle.setAttribute('aria-expanded', String(open));
     };
     const closeMobile = () => setMobileOpen(false);
@@ -43,7 +50,6 @@
   const themeButton = existingThemeButton || document.createElement('button');
   if (!existingThemeButton) {
     themeButton.type = 'button';
-    themeButton.className = 'theme-toggle';
     themeButton.id = 'themeToggle';
   }
 
@@ -61,7 +67,18 @@
   };
 
   applyTheme(preferredTheme());
-  if (!existingThemeButton) document.body.appendChild(themeButton);
+  if (!existingThemeButton) {
+    const navActions =
+      document.querySelector('.dashboard-nav .container > div:last-child') ||
+      document.querySelector('#navMain > .d-flex');
+    if (navActions) {
+      themeButton.className = 'theme-toggle theme-toggle-nav';
+      navActions.appendChild(themeButton);
+    } else {
+      themeButton.className = 'theme-toggle';
+      document.body.appendChild(themeButton);
+    }
+  }
   themeButton.addEventListener('click', () => {
     applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true);
   });
@@ -313,7 +330,7 @@
       if (willOpen) loadNotifications();
     });
 
-    if (markAll) {
+  if (markAll) {
       markAll.addEventListener('click', (ev) => {
         ev.stopPropagation();
         markAllRead();
@@ -336,5 +353,20 @@
 
     loadNotifications();
     setInterval(loadNotifications, 30000);
+  }
+
+  /* ---------- Smooth page transitions ---------- */
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('a[href]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const href = link.getAttribute('href');
+        const isInternal = href && !href.startsWith('#') && !href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('tel:');
+        if (!isInternal || link.target === '_blank' || link.hasAttribute('download') || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        event.preventDefault();
+        document.body.classList.add('page-leaving');
+        window.setTimeout(() => { window.location.href = href; }, 180);
+      });
+    });
   }
 })();

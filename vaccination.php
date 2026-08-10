@@ -40,7 +40,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
 <script>
   (function () {
     try {
@@ -111,6 +111,9 @@ try {
                 <span class="badge bg-info-subtle text-info-emphasis me-2">Required doses: <?= (int)$vaccine['required_doses'] ?></span>
                 <span class="badge bg-secondary-subtle text-secondary-emphasis">Dose gap: <?= (int)$vaccine['gap_days'] ?> day(s)</span>
               </div>
+              <a class="btn btn-solid-nhre w-100 mt-3" href="vaccination_centers.php?vaccine=<?= urlencode($vaccine['name']) ?>">
+                <i class="fa-solid fa-location-dot"></i> Choose Vaccination Center
+              </a>
             </article>
           </div>
         <?php endforeach; ?>
@@ -156,6 +159,6 @@ try {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

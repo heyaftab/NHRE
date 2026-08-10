@@ -1,11 +1,44 @@
 <?php
 require_once __DIR__ . '/auth/auth_check.php';
+ensure_demo_accounts();
 redirect_if_authenticated();
 
 $errors = session_pull('errors', []);
 $old = session_pull('old', []);
 $success = session_pull('success');
 $error = session_pull('error');
+$demo_accounts = [
+    ['role' => 'Patient', 'email' => 'patient@nhre.gov', 'password' => 'Patient123!', 'badge' => 'primary', 'seed' => 'demo-patient'],
+    ['role' => 'Doctor', 'email' => 'doctor001@nhre.dev', 'password' => 'Doctor123!', 'badge' => 'info', 'seed' => 'demo-doctor', 'email_note' => '(001–050)'],
+    ['role' => 'Pharmacist', 'email' => 'pharmacist@nhre.gov', 'password' => 'Pharmacist123!', 'badge' => 'success', 'seed' => 'demo-pharmacist'],
+    ['role' => 'Lab Technician', 'email' => 'lab@nhre.gov', 'password' => 'Lab123!', 'badge' => 'warning', 'seed' => 'demo-lab-technician'],
+    ['role' => 'Hospital Admin', 'email' => 'admin@nhre.gov', 'password' => 'Admin123!', 'badge' => 'danger', 'seed' => 'demo-hospital-admin'],
+    ['role' => 'System Admin', 'email' => 'sysadmin@nhre.gov', 'password' => 'SysAdmin123!', 'badge' => 'dark', 'seed' => 'demo-system-admin'],
+];
+$demo_profile_photos = [];
+
+try {
+    $emails = array_column($demo_accounts, 'email');
+    $photoStmt = db()->prepare('SELECT email, profile_photo FROM users WHERE email IN (' . implode(',', array_fill(0, count($emails), '?')) . ')');
+    $photoStmt->execute($emails);
+    foreach ($photoStmt->fetchAll() as $profile) {
+        $demo_profile_photos[(string)$profile['email']] = (string)($profile['profile_photo'] ?? '');
+    }
+} catch (PDOException $e) {
+}
+
+function demo_profile_picture(array $account, array $photos): string
+{
+    $photo = $photos[$account['email']] ?? '';
+    $isLocalPhoto = $photo !== '' && is_file(__DIR__ . '/' . $photo);
+    $isCartoonAvatar = str_starts_with($photo, 'https://api.dicebear.com/9.x/avataaars/svg?');
+    if ($isLocalPhoto || $isCartoonAvatar) {
+        return $photo;
+    }
+
+    return 'https://api.dicebear.com/9.x/avataaars/svg?seed=' . rawurlencode($account['seed'])
+        . '&backgroundColor=b6e3f4,c0aede,d1d4f9&radius=50';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,7 +50,7 @@ $error = session_pull('error');
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-12">
 <script>
   (function () {
     try {
@@ -33,32 +66,37 @@ $error = session_pull('error');
 </head>
 <body class="auth-body">
   <main class="auth-page">
-    <a class="auth-brand" href="index.php" aria-label="Back to NHRE home">
-      <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
-    </a>
-
-    <section class="auth-shell container">
-      <div class="row g-4 align-items-center justify-content-center">
-        <div class="col-lg-5 d-none d-lg-block">
+    <section class="auth-shell auth-shell--split container">
+      <div class="row g-0 align-items-stretch justify-content-center">
+        <div class="col-xl-4 d-none d-xl-block">
           <div class="auth-info-panel">
-            <div class="auth-info-icon"><i class="fa-solid fa-shield-heart"></i></div>
-            <h1>Secure access to national health records.</h1>
-            <p>Authenticate safely to view records, appointments, and role-based healthcare tools.</p>
+            <div class="auth-info-brand">
+              <img src="assets/images/nhre-logo.svg" alt="" class="auth-info-logo" aria-hidden="true">
+              <div class="auth-info-brand-text">
+                <span class="auth-info-name">NHRE</span>
+                <span class="auth-info-sub">National Healthcare Record Exchange</span>
+              </div>
+            </div>
+            <div class="auth-trust-pill"><i class="fa-solid fa-shield-halved"></i> Trusted. Secure. Connected.</div>
+            <h1>Your health information, <em>securely connected</em></h1>
+            <span class="auth-info-rule"></span>
+            <p>Sign in to access your records, appointments, and trusted healthcare tools.</p>
             <div class="auth-info-list">
-              <span><i class="fa-solid fa-lock"></i> Session protected</span>
-              <span><i class="fa-solid fa-database"></i> Encrypted credentials</span>
-              <span><i class="fa-solid fa-user-shield"></i> Role-based dashboard</span>
+              <span><i class="fa-solid fa-lock"></i><b>Private by design</b><small>Protected with encryption and strict privacy controls.</small></span>
+              <span><i class="fa-solid fa-heart-pulse"></i><b>Healthcare at hand</b><small>Your essential records are always within reach.</small></span>
             </div>
           </div>
         </div>
 
-        <div class="col-lg-5 col-md-8">
+        <div class="col-xl-8 col-lg-9 col-md-8">
           <div class="card auth-card glass-card">
             <div class="card-body">
-              <div class="auth-card-head">
-                <span class="auth-kicker">Welcome back</span>
+              <a class="auth-back-link" href="index.php"><i class="fa-solid fa-arrow-left"></i> Back to home</a>
+              <div class="auth-card-head auth-card-head--with-badge">
+                <div><span class="auth-kicker">Welcome back</span>
                 <h2>Login to NHRE</h2>
-                <p>Use your registered email and password to continue.</p>
+                <p>Use your registered email and password to continue.</p></div>
+                <div class="auth-security-badge"><i class="fa-solid fa-shield-halved"></i><span><b>Your data is safe</b>and encrypted</span></div>
               </div>
 
               <?php if ($success): ?>
@@ -120,9 +158,64 @@ $error = session_pull('error');
         </div>
       </div>
     </section>
+
+    <section class="auth-shell container mt-4">
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-10">
+          <div class="demo-accounts glass-card">
+            <div class="demo-accounts-head">
+              <span class="auth-kicker">Demo access</span>
+              <h3>Demo accounts</h3>
+              <p>Pick any seeded account below and click <strong>Use</strong> to fill the login form.</p>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>Password</th>
+                    <th class="text-end">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($demo_accounts as $account): ?>
+                    <tr>
+                      <td><img class="demo-account-avatar" src="<?= e(demo_profile_picture($account, $demo_profile_photos)) ?>" alt="Profile picture for <?= e($account['role']) ?> demo account"></td>
+                      <td><span class="badge bg-<?= e($account['badge']) ?>-subtle text-<?= e($account['badge']) ?>-emphasis"><?= e($account['role']) ?></span></td>
+                      <td class="font-monospace"><?= e($account['email']) ?><?php if (!empty($account['email_note'])): ?> <span class="text-muted"><?= e($account['email_note']) ?></span><?php endif; ?></td>
+                      <td class="font-monospace"><?= e($account['password']) ?></td>
+                      <td class="text-end"><button type="button" class="btn btn-demo-fill btn-sm" data-email="<?= e($account['email']) ?>" data-password="<?= e($account['password']) ?>">Use</button></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
+  <script>
+    document.querySelectorAll('.btn-demo-fill').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var email = document.getElementById('email');
+        var password = document.getElementById('password');
+        if (!email || !password) {
+          return;
+        }
+        email.value = btn.dataset.email;
+        password.value = btn.dataset.password;
+        email.dispatchEvent(new Event('input', { bubbles: true }));
+        password.dispatchEvent(new Event('input', { bubbles: true }));
+        document.querySelector('#loginForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        email.focus();
+      });
+    });
+  </script>
 </body>
 </html>

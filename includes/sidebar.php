@@ -6,6 +6,14 @@ $sidebarPage = basename((string)($_SERVER['PHP_SELF'] ?? ''));
 $sidebarInitials = mb_strtoupper(mb_substr(trim($sidebarName), 0, 1));
 $sidebarUnread = unread_notification_count((int)($_SESSION['user_id'] ?? 0));
 
+$sidebarPhoto = '';
+try {
+    $sidebarPhotoStmt = db()->prepare('SELECT profile_photo FROM users WHERE id = ? LIMIT 1');
+    $sidebarPhotoStmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
+    $sidebarPhoto = (string)$sidebarPhotoStmt->fetchColumn();
+} catch (PDOException $e) {
+}
+
 $sidebarLinks = [
     ['dashboard.php', 'fa-house', 'Dashboard'],
     ['profile.php', 'fa-user', 'My Profile'],
@@ -15,7 +23,8 @@ if ($sidebarRole === 'Patient') {
     $sidebarLinks = array_merge($sidebarLinks, [
         ['coming_soon.php?feature=medical-records', 'fa-notes-medical', 'Medical Records', true],
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
-        ['coming_soon.php?feature=prescriptions', 'fa-pills', 'Prescriptions', true],
+        ['coming_soon.php?feature=prescriptions', 'fa-prescription', 'Prescriptions', true],
+        ['pharmacy.php', 'fa-pills', 'Pharmacy'],
         ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
         ['vaccination.php', 'fa-syringe', 'Vaccinations'],
         ['coming_soon.php?feature=allergies', 'fa-triangle-exclamation', 'Allergies', true],
@@ -97,7 +106,13 @@ $sidebarLinks[] = ['help_support.php', 'fa-circle-question', 'Help & Support'];
   </div>
   <p class="sidebar-tagline">National Healthcare<br>Record Exchange</p>
   <a class="sidebar-user" href="profile.php" title="View profile">
-    <span class="sidebar-avatar" aria-hidden="true"><?= e($sidebarInitials) ?></span>
+    <span class="sidebar-avatar" aria-hidden="true">
+      <?php if ($sidebarPhoto !== ''): ?>
+        <img src="<?= e($sidebarPhoto) ?>" alt="">
+      <?php else: ?>
+        <?= e($sidebarInitials) ?>
+      <?php endif; ?>
+    </span>
     <span class="sidebar-user-text"><strong><?= e($sidebarName) ?></strong><small><?= e($sidebarRole) ?></small></span>
   </a>
   <nav class="sidebar-menu">

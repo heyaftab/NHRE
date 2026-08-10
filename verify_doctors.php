@@ -25,7 +25,7 @@ $resultSpecializations = 'specializations=' . $stmt->fetchColumn() . PHP_EOL;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Verify Doctors - NHRE</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
 <script>
   (function () {
     try {
@@ -41,6 +41,7 @@ $resultSpecializations = 'specializations=' . $stmt->fetchColumn() . PHP_EOL;
 </head>
 <body class="dashboard-body">
   <?php require __DIR__ . '/includes/sidebar.php'; ?>
+  <?php require __DIR__ . '/includes/topnav.php'; ?>
   <main class="dashboard-main">
     <section class="container" style="max-width: 680px;">
       <div class="glass-card p-4 mt-4">
@@ -50,6 +51,6 @@ $resultSpecializations = 'specializations=' . $stmt->fetchColumn() . PHP_EOL;
       </div>
     </section>
   </main>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

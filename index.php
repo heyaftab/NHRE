@@ -14,7 +14,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-9">
   <script>
     (function () {
       try {
@@ -50,7 +50,7 @@
           <li class="nav-item"><a class="nav-link nav-link-nhre" href="#how-it-works">How It Works</a></li>
           <li class="nav-item"><a class="nav-link nav-link-nhre" href="#security">Security</a></li>
           <li class="nav-item"><a class="nav-link nav-link-nhre" href="#benefits">Benefits</a></li>
-          <li class="nav-item"><a class="nav-link nav-link-nhre" href="#contact">Contact</a></li>
+          <li class="nav-item"><a class="nav-link nav-link-nhre" href="site_page.php?page=contact">Contact</a></li>
         </ul>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           <a href="login.php" class="btn btn-outline-nhre ripple">Login</a>
@@ -85,9 +85,16 @@
                   class="fa-solid fa-arrow-right ms-1"></i></a>
               <a href="#how-it-works" class="btn btn-ghost-light ripple">Learn More</a>
             </div>
+            <div class="hero-trust-row" aria-label="NHRE platform highlights">
+              <span><i class="fa-solid fa-shield-halved"></i> Privacy-first</span>
+              <span><i class="fa-solid fa-bolt"></i> Fast, connected care</span>
+              <span><i class="fa-solid fa-circle-check"></i> Consent-controlled</span>
+            </div>
           </div>
           <div class="col-lg-6">
-            <div class="network-wrap" aria-hidden="true">
+            <div class="hero-visual" aria-hidden="true">
+              <div class="hero-photo"></div>
+              <div class="network-wrap">
               <svg class="network-svg" viewBox="0 0 500 460" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="1">
@@ -109,10 +116,12 @@
               <div class="node-card node-card-doctors"><i class="fa-solid fa-user-doctor"></i> Doctors</div>
               <div class="node-card node-card-patients"><i class="fa-solid fa-user"></i> Patients</div>
               <div class="node-card node-card-labs"><i class="fa-solid fa-flask-vial"></i> Laboratories</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+      <a class="hero-scroll-cue" href="#features"><span>Explore the exchange</span><i class="fa-solid fa-arrow-down"></i></a>
     </header>
 
     <!-- ================= STATS ================= -->
@@ -576,27 +585,27 @@
         </div>
         <div class="col-6 col-lg-2">
           <h6>About</h6>
-          <a href="#" class="f-link">Our Mission</a>
-          <a href="#" class="f-link">Leadership</a>
-          <a href="#" class="f-link">Newsroom</a>
+          <a href="site_page.php?page=mission" class="f-link">Our Mission</a>
+          <a href="site_page.php?page=leadership" class="f-link">Leadership</a>
+          <a href="site_page.php?page=newsroom" class="f-link">Newsroom</a>
         </div>
         <div class="col-6 col-lg-2">
           <h6>Services</h6>
-          <a href="#features" class="f-link">Patient Portal</a>
-          <a href="#features" class="f-link">Doctor Dashboard</a>
-          <a href="#security" class="f-link">Security</a>
+          <a href="site_page.php?page=patient-portal" class="f-link">Patient Portal</a>
+          <a href="site_page.php?page=doctor-dashboard" class="f-link">Doctor Dashboard</a>
+          <a href="site_page.php?page=security" class="f-link">Security</a>
         </div>
         <div class="col-6 col-lg-2">
           <h6>Resources</h6>
-          <a href="#how-it-works" class="f-link">How It Works</a>
-          <a href="#" class="f-link">Developer APIs</a>
-          <a href="#" class="f-link">Support Center</a>
+          <a href="site_page.php?page=how-it-works" class="f-link">How It Works</a>
+          <a href="site_page.php?page=developer-apis" class="f-link">Developer APIs</a>
+          <a href="site_page.php?page=support-center" class="f-link">Support Center</a>
         </div>
         <div class="col-6 col-lg-2">
           <h6>Legal</h6>
-          <a href="#" class="f-link">Privacy Policy</a>
-          <a href="#" class="f-link">Terms of Service</a>
-          <a href="#contact" class="f-link">Contact</a>
+          <a href="privacy_policy.php" class="f-link">Privacy Policy</a>
+          <a href="terms_conditions.php" class="f-link">Terms of Service</a>
+          <a href="site_page.php?page=contact" class="f-link">Contact</a>
         </div>
       </div>
       <div class="footer-bottom d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -612,7 +621,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 
 </html>

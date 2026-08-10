@@ -19,7 +19,7 @@ $success = session_pull('success');
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-13">
 <script>
   (function () {
     try {
@@ -107,7 +107,7 @@ $success = session_pull('success');
         </div>
       <?php endif; ?>
 
-      <div class="row g-4 mt-1">
+      <div class="row g-4 mt-1 dashboard-cards">
         <div class="col-md-6 col-xl-3">
           <article class="dashboard-card">
             <div class="dashboard-card-icon"><i class="fa-solid fa-user"></i></div>
@@ -209,6 +209,6 @@ $success = session_pull('success');
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

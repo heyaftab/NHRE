@@ -66,6 +66,13 @@ function redirect(string $path): never
     exit;
 }
 
+/** Resolve a same-level page path relative to the current script's directory (handles /auth/ subfolder). */
+function sibling_path(string $page): string
+{
+    $dir = str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '')));
+    return str_ends_with($dir, '/auth') ? '../' . $page : $page;
+}
+
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf_token'])) {
@@ -84,7 +91,7 @@ function csrf_check(?string $token): bool
 function require_auth(): void
 {
     if (empty($_SESSION['user_id'])) {
-        redirect('login.php');
+        redirect(sibling_path('login.php'));
     }
 }
 
@@ -94,7 +101,7 @@ function require_role(array $roles): void
     require_auth();
     if (!in_array((string)($_SESSION['role'] ?? ''), $roles, true)) {
         $_SESSION['errors'] = ['You do not have permission to access that workspace.'];
-        redirect('dashboard.php');
+        redirect(sibling_path('dashboard.php'));
     }
 }
 
@@ -531,6 +538,45 @@ function ensure_doctor_catalog_tables(): void
     }
 }
 
+/**
+ * Idempotently seed one demo account for every role that cannot self-register
+ * (Pharmacist and Lab Technician already can self-register; these just provide
+ * ready-made demo credentials). Passwords match the defaults shown on the login
+ * page and in the README demo accounts table.
+ */
+function ensure_demo_accounts(): void
+{
+    $accounts = [
+        ['Hospital Administrator', '0000000002', 'admin@nhre.gov', '+8801000000002', 'Admin123!', 'Hospital Admin'],
+        ['System Administrator',   '0000000003', 'sysadmin@nhre.gov', '+8801000000003', 'SysAdmin123!', 'System Admin'],
+        ['Demo Pharmacist',        '0000000004', 'pharmacist@nhre.gov', '+8801000000004', 'Pharmacist123!', 'Pharmacist'],
+        ['Demo Lab Technician',    '0000000005', 'lab@nhre.gov', '+8801000000005', 'Lab123!', 'Lab Technician'],
+    ];
+
+    try {
+        $stmt = db()->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+        $insert = db()->prepare(
+            'INSERT INTO users (fullname, nid, email, phone, password_hash, role)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($accounts as $account) {
+            $stmt->execute([$account[2]]);
+            if ($stmt->fetch()) {
+                continue;
+            }
+            $insert->execute([
+                $account[0],
+                $account[1],
+                $account[2],
+                $account[3],
+                password_hash($account[4], PASSWORD_DEFAULT),
+                $account[5],
+            ]);
+        }
+    } catch (PDOException $e) {
+    }
+}
+
 function get_doctor_time_slots(int $doctor_id, ?string $appointment_date = null, ?string $visiting_hours = null): array
 {
     $default_slots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00'];
@@ -566,6 +612,73 @@ function get_doctor_time_slots(int $doctor_id, ?string $appointment_date = null,
     }
 
     return $slots;
+}
+
+function ensure_doctor_ratings_table(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `doctor_ratings` (
+          `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `doctor_id`   INT UNSIGNED NOT NULL,
+          `patient_id`  INT UNSIGNED NOT NULL,
+          `rating`      TINYINT UNSIGNED NOT NULL,
+          `review`      TEXT NULL DEFAULT NULL,
+          `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `updated_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_ratings_doctor_patient` (`doctor_id`, `patient_id`),
+          KEY `idx_ratings_doctor` (`doctor_id`),
+          KEY `idx_ratings_patient` (`patient_id`),
+          CONSTRAINT `fk_ratings_doctor` FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_ratings_patient` FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+}
+
+/** Most recent patient reviews for a doctor. */
+function get_doctor_reviews(int $doctor_id, int $limit = 30): array
+{
+    ensure_doctor_ratings_table();
+    $stmt = db()->prepare(
+        'SELECT r.id, r.rating, r.review, r.created_at, r.updated_at, u.fullname AS patient_name
+         FROM doctor_ratings r
+         JOIN users u ON u.id = r.patient_id
+         WHERE r.doctor_id = ?
+         ORDER BY r.updated_at DESC, r.id DESC
+         LIMIT ' . max(1, (int)$limit)
+    );
+    $stmt->execute([$doctor_id]);
+    return $stmt->fetchAll();
+}
+
+/** The logged-in patient's own review for a doctor, if any. */
+function get_patient_review(int $doctor_id, int $patient_id): ?array
+{
+    ensure_doctor_ratings_table();
+    $stmt = db()->prepare(
+        'SELECT id, rating, review FROM doctor_ratings WHERE doctor_id = ? AND patient_id = ? LIMIT 1'
+    );
+    $stmt->execute([$doctor_id, $patient_id]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/** Font Awesome star row for a doctor's aggregate rating. */
+function render_rating_stars(?float $rating): string
+{
+    $rating = (float)$rating;
+    $out = '<span class="rating-stars" aria-label="' . e((string)round($rating, 1)) . ' out of 5 stars">';
+    for ($i = 1; $i <= 5; $i++) {
+        if ($rating >= $i - 0.25) {
+            $icon = 'fa-solid fa-star';
+        } elseif ($rating >= $i - 0.75) {
+            $icon = 'fa-solid fa-star-half-stroke';
+        } else {
+            $icon = 'fa-regular fa-star';
+        }
+        $out .= '<i class="' . $icon . '"></i>';
+    }
+    return $out . '</span>';
 }
 
 function ensure_medical_test_tables_exists(): void
@@ -651,6 +764,163 @@ function ensure_pharmacy_requests_table_exists(): void
             FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
     );
+}
+
+/** Vaccine names tracked by the vaccination schedule. */
+function vaccination_names(): array
+{
+    return ['BCG', 'DPT', 'Polio', 'Hepatitis B', 'Measles', 'MMR', 'Typhoid', 'Rabies', 'COVID-19', 'Influenza', 'HPV', 'Tetanus'];
+}
+
+function ensure_vaccination_center_tables(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `vaccination_centers` (
+          `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `name`        VARCHAR(190) NOT NULL,
+          `district`    VARCHAR(100) NOT NULL,
+          `division`    VARCHAR(100) NOT NULL,
+          `center_type` VARCHAR(20)  NOT NULL DEFAULT \'Public\',
+          `address`     VARCHAR(255) NULL,
+          `phone`       VARCHAR(30)  NULL,
+          `is_active`   TINYINT(1)   NOT NULL DEFAULT 1,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_vaccination_centers_name` (`name`),
+          KEY `idx_vaccination_centers_type` (`center_type`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `vaccination_center_prices` (
+          `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `center_id`    INT UNSIGNED NOT NULL,
+          `vaccine_name` VARCHAR(100) NOT NULL,
+          `price`        INT UNSIGNED NOT NULL DEFAULT 0,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_center_vaccine` (`center_id`, `vaccine_name`),
+          KEY `idx_vaccine_prices_vaccine` (`vaccine_name`),
+          CONSTRAINT `fk_vaccination_center_prices_center`
+            FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    $centers = [
+        ['ICDC Hospital EPI Centre', 'Dhaka', 'Dhaka', 'Public', 'Matuail, Demra', '+880-2-7561811'],
+        ['Shaheed Suhrawardy Medical College Hospital', 'Dhaka', 'Dhaka', 'Public', 'Sher-e-Bangla Nagar', '+880-2-8121686'],
+        ['Chattogram Medical College Hospital EPI Unit', 'Chattogram', 'Chattogram', 'Public', 'K.B. Fazlul Kader Road', '+880-31-632337'],
+        ['Rajshahi Medical College Hospital EPI Unit', 'Rajshahi', 'Rajshahi', 'Public', 'Laxmipur, Rajshahi', '+880-721-772027'],
+        ['Khulna Medical College Hospital EPI Unit', 'Khulna', 'Khulna', 'Public', 'Sonadanga', '+880-41-721204'],
+        ['MAG Osmani Medical College Hospital EPI Unit', 'Sylhet', 'Sylhet', 'Public', 'Osmani Medical College Rd', '+880-821-713195'],
+        ['Rangpur Medical College Hospital EPI Unit', 'Rangpur', 'Rangpur', 'Public', 'Medical College Road', '+880-521-51002'],
+        ['Mymensingh Medical College Hospital EPI Unit', 'Mymensingh', 'Mymensingh', 'Public', 'Main Campus, Mymensingh', '+880-91-53612'],
+        ['Barishal Medical College Hospital EPI Unit', 'Barishal', 'Barishal', 'Public', 'Nathullabad', '+880-431-64041'],
+        ['Square Hospitals Ltd', 'Dhaka', 'Dhaka', 'Private', '18/F West Panthapath', '+880-2-8144400'],
+        ['United Hospital', 'Dhaka', 'Dhaka', 'Private', 'Plot 15, Road 71, Gulshan', '+880-2-8836000'],
+        ['Evercare Hospital Dhaka', 'Dhaka', 'Dhaka', 'Private', 'Plot 81, Block E, Bashundhara', '+880-9666781'],
+        ['Labaid Specialized Hospital', 'Dhaka', 'Dhaka', 'Private', 'House 1, Road 4, Dhanmondi', '+880-2-9676301'],
+        ['Popular Diagnostic Centre', 'Dhaka', 'Dhaka', 'Private', 'House 40, Road 11, Dhanmondi', '+880-2-8154197'],
+        ['Ibn Sina Diagnostic & Consultation Centre', 'Dhaka', 'Dhaka', 'Private', 'House 48, Road 9/A, Dhanmondi', '+880-2-9128835'],
+        ['Chattogram Metropolitan Hospital', 'Chattogram', 'Chattogram', 'Private', 'Khulshi', '+880-31-655600'],
+        ['Rajshahi Diagnostic Centre', 'Rajshahi', 'Rajshahi', 'Private', 'Saheb Bazar', '+880-721-774060'],
+        ['Khulna City Medical College Hospital', 'Khulna', 'Khulna', 'Private', 'Boyra', '+880-41-720084'],
+        ['Sylhet Women\'s Medical College Hospital', 'Sylhet', 'Sylhet', 'Private', 'Mirboxtula', '+880-821-720022'],
+        ['Rangpur Community Medical College Hospital', 'Rangpur', 'Rangpur', 'Private', 'Dhap', '+880-521-61478'],
+        ['Mymensingh Medical Centre', 'Mymensingh', 'Mymensingh', 'Private', 'Shesh More', '+880-91-66965'],
+        ['Barishal General Hospital', 'Barishal', 'Barishal', 'Private', 'Sadar Road', '+880-431-63527'],
+        ['Tangail Sadar Hospital', 'Tangail', 'Dhaka', 'Public', 'Tangail Sadar', '+880-921-62399'],
+        ['Kalihati Upazila Health Complex', 'Tangail', 'Dhaka', 'Public', 'Kalihati', '+880-921-64022'],
+        ['Madhupur Upazila Health Complex', 'Tangail', 'Dhaka', 'Public', 'Madhupur', '+880-921-63088'],
+        ['Ghatail Upazila Health Complex', 'Tangail', 'Dhaka', 'Public', 'Ghatail', '+880-921-65233'],
+        ['Gazaria Upazila Health Complex', 'Munshiganj', 'Dhaka', 'Public', 'Gazaria', '+880-2-7620145'],
+        ['Cumilla Sadar Hospital', 'Cumilla', 'Chattogram', 'Public', 'Cumilla Sadar', '+880-81-76001'],
+        ['Cox\'s Bazar Sadar Hospital', 'Cox\'s Bazar', 'Chattogram', 'Public', 'Cox\'s Bazar Sadar', '+880-341-64344'],
+        ['Feni Sadar Hospital', 'Feni', 'Chattogram', 'Public', 'Feni Sadar', '+880-331-73122'],
+        ['Brahmanbaria Sadar Hospital', 'Brahmanbaria', 'Chattogram', 'Public', 'Brahmanbaria Sadar', '+880-851-53205'],
+        ['Hathazari Upazila Health Complex', 'Chattogram', 'Chattogram', 'Public', 'Hathazari', '+880-31-628055'],
+        ['Patiya Upazila Health Complex', 'Chattogram', 'Chattogram', 'Public', 'Patiya', '+880-31-628033'],
+        ['Fatikchari Upazila Health Complex', 'Chattogram', 'Chattogram', 'Public', 'Fatikchari', '+880-31-628044'],
+        ['Jashore General Hospital', 'Jashore', 'Khulna', 'Public', 'Jashore Sadar', '+880-421-64281'],
+        ['Kushtia General Hospital', 'Kushtia', 'Khulna', 'Public', 'Kushtia Sadar', '+880-71-61155'],
+        ['Bagerhat Sadar Hospital', 'Bagerhat', 'Khulna', 'Public', 'Bagerhat Sadar', '+880-468-64004'],
+        ['Mongla Upazila Health Complex', 'Bagerhat', 'Khulna', 'Public', 'Mongla', '+880-468-64088'],
+        ['Satkhira Sadar Hospital', 'Satkhira', 'Khulna', 'Public', 'Satkhira Sadar', '+880-471-64100'],
+        ['Bogura Shaheed Ziaur Rahman Medical College Hospital', 'Bogura', 'Rajshahi', 'Public', 'Jaleswaritola', '+880-51-61021'],
+        ['Pabna General Hospital', 'Pabna', 'Rajshahi', 'Public', 'Pabna Sadar', '+880-731-61130'],
+        ['Sirajganj General Hospital', 'Sirajganj', 'Rajshahi', 'Public', 'Sirajganj Sadar', '+880-751-61111'],
+        ['Natore Sadar Hospital', 'Natore', 'Rajshahi', 'Public', 'Natore Sadar', '+880-771-66300'],
+        ['Puthia Upazila Health Complex', 'Rajshahi', 'Rajshahi', 'Public', 'Puthia', '+880-721-640088'],
+        ['Shibganj Upazila Health Complex', 'Bogura', 'Rajshahi', 'Public', 'Shibganj', '+880-51-640022'],
+        ['Dinajpur District Hospital', 'Dinajpur', 'Rangpur', 'Public', 'Dinajpur Sadar', '+880-531-61044'],
+        ['Gaibandha District Hospital', 'Gaibandha', 'Rangpur', 'Public', 'Gaibandha Sadar', '+880-541-61177'],
+        ['Kurigram General Hospital', 'Kurigram', 'Rangpur', 'Public', 'Kurigram Sadar', '+880-581-61200'],
+        ['Thakurgaon Sadar Hospital', 'Thakurgaon', 'Rangpur', 'Public', 'Thakurgaon Sadar', '+880-561-62011'],
+        ['Parbatipur Upazila Health Complex', 'Dinajpur', 'Rangpur', 'Public', 'Parbatipur', '+880-531-640055'],
+        ['Pirganj Upazila Health Complex', 'Rangpur', 'Rangpur', 'Public', 'Pirganj', '+880-521-640066'],
+        ['Jamalpur General Hospital', 'Jamalpur', 'Mymensingh', 'Public', 'Jamalpur Sadar', '+880-981-61055'],
+        ['Netrakona General Hospital', 'Netrakona', 'Mymensingh', 'Public', 'Netrakona Sadar', '+880-951-61022'],
+        ['Sherpur District Hospital', 'Sherpur', 'Mymensingh', 'Public', 'Sherpur Sadar', '+880-931-61233'],
+        ['Gofargaon Upazila Health Complex', 'Mymensingh', 'Mymensingh', 'Public', 'Gofargaon', '+880-91-640077'],
+        ['Trishal Upazila Health Complex', 'Mymensingh', 'Mymensingh', 'Public', 'Trishal', '+880-91-640088'],
+        ['Islampur Upazila Health Complex', 'Jamalpur', 'Mymensingh', 'Public', 'Islampur', '+880-981-640099'],
+        ['Habiganj District Hospital', 'Habiganj', 'Sylhet', 'Public', 'Habiganj Sadar', '+880-831-52011'],
+        ['Maulvibazar District Hospital', 'Maulvibazar', 'Sylhet', 'Public', 'Maulvibazar Sadar', '+880-861-52022'],
+        ['Sunamganj District Hospital', 'Sunamganj', 'Sylhet', 'Public', 'Sunamganj Sadar', '+880-871-56033'],
+        ['Golapganj Upazila Health Complex', 'Sylhet', 'Sylhet', 'Public', 'Golapganj', '+880-821-640044'],
+        ['Beanibazar Upazila Health Complex', 'Sylhet', 'Sylhet', 'Public', 'Beanibazar', '+880-821-640055'],
+        ['Kulaura Upazila Health Complex', 'Maulvibazar', 'Sylhet', 'Public', 'Kulaura', '+880-861-640066'],
+        ['Patuakhali General Hospital', 'Patuakhali', 'Barishal', 'Public', 'Patuakhali Sadar', '+880-441-61144'],
+        ['Bhola District Hospital', 'Bhola', 'Barishal', 'Public', 'Bhola Sadar', '+880-491-61255'],
+        ['Barguna Sadar Hospital', 'Barguna', 'Barishal', 'Public', 'Barguna Sadar', '+880-448-64077'],
+        ['Pirojpur Sadar Hospital', 'Pirojpur', 'Barishal', 'Public', 'Pirojpur Sadar', '+880-461-64088'],
+        ['Mathbaria Upazila Health Complex', 'Pirojpur', 'Barishal', 'Public', 'Mathbaria', '+880-461-64099'],
+        ['Kalapara Upazila Health Complex', 'Patuakhali', 'Barishal', 'Public', 'Kalapara', '+880-441-64110'],
+        ['BIRDEM General Hospital', 'Dhaka', 'Dhaka', 'Private', 'Shahbag, 122 Kazi Nazrul Islam Ave', '+880-2-8616641'],
+        ['Green Life Medical College Hospital', 'Dhaka', 'Dhaka', 'Private', '32-35 Bir Uttam Qazi Nuruzzaman Sarak', '+880-2-9612233'],
+        ['Anwer Khan Modern Hospital', 'Dhaka', 'Dhaka', 'Private', 'House 17, Road 8, Dhanmondi', '+880-2-9660995'],
+        ['Asgar Ali Hospital', 'Dhaka', 'Dhaka', 'Private', '111/1/A Distillery Road, Gandaria', '+880-2-2334000'],
+        ['Islami Bank Central Hospital', 'Dhaka', 'Dhaka', 'Private', '30 Kakrail Road', '+880-2-8331190'],
+        ['Holy Family Red Crescent Medical College Hospital', 'Dhaka', 'Dhaka', 'Private', '1 Eskaton Garden Road', '+880-2-8313351'],
+        ['Evercare Hospital Chattogram', 'Chattogram', 'Chattogram', 'Private', 'Kattaltoli, Chandgaon', '+880-31-2551180'],
+        ['Prime Medical College Hospital', 'Rangpur', 'Rangpur', 'Private', 'Biplob Crossing', '+880-521-61335'],
+        ['Gazi Medical College Hospital', 'Khulna', 'Khulna', 'Private', 'KDA Avenue', '+880-41-721801'],
+        ['North East Medical College Hospital', 'Sylhet', 'Sylhet', 'Private', 'South Surma', '+880-821-720033'],
+        ['Islami Bank Medical College Hospital', 'Rajshahi', 'Rajshahi', 'Private', 'Nachole Para', '+880-721-772450'],
+        ['Community Medical College Hospital', 'Mymensingh', 'Mymensingh', 'Private', 'Biddaganj', '+880-91-66533'],
+    ];
+
+    $privatePrices = [
+        'BCG' => 300, 'DPT' => 1200, 'Polio' => 1500, 'Hepatitis B' => 1000, 'Measles' => 900,
+        'MMR' => 1600, 'Typhoid' => 1100, 'Rabies' => 3200, 'COVID-19' => 2000, 'Influenza' => 1800,
+        'HPV' => 5500, 'Tetanus' => 800,
+    ];
+
+    $checkStmt = db()->prepare('SELECT id FROM vaccination_centers WHERE name = ? LIMIT 1');
+    $stmt = db()->prepare(
+        'INSERT INTO vaccination_centers (name, district, division, center_type, address, phone)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    $priceStmt = db()->prepare(
+        'INSERT IGNORE INTO vaccination_center_prices (center_id, vaccine_name, price) VALUES (?, ?, ?)'
+    );
+
+    foreach ($centers as $center) {
+        $checkStmt->execute([$center[0]]);
+        $centerId = (int)$checkStmt->fetchColumn();
+        if ($centerId === 0) {
+            $stmt->execute($center);
+            $centerId = (int)db()->lastInsertId();
+        }
+        if ($centerId > 0) {
+            $isPublic = $center[3] === 'Public';
+            foreach (vaccination_names() as $vaccineName) {
+                $priceStmt->execute([
+                    $centerId,
+                    $vaccineName,
+                    $isPublic ? 0 : (int)($privatePrices[$vaccineName] ?? 0),
+                ]);
+            }
+        }
+    }
 }
 
 function ensure_access_tables_exists(): void

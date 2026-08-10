@@ -11,6 +11,13 @@ $stmt = db()->prepare('SELECT fullname, email, phone, nid, account_number, date_
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
+if (is_array($user) && empty($user['account_number'])) {
+    $assigned_account_number = 'NHRE-' . str_pad((string)$user_id, 8, '0', STR_PAD_LEFT);
+    $assign_stmt = db()->prepare("UPDATE users SET account_number = ? WHERE id = ? AND (account_number IS NULL OR account_number = '')");
+    $assign_stmt->execute([$assigned_account_number, $user_id]);
+    $user['account_number'] = $assigned_account_number;
+}
+
 $profile = is_array($user) ? $user : [];
 $profile = array_merge($profile, is_array($old) ? $old : []);
 $fullname = $profile['fullname'] ?? ($_SESSION['fullname'] ?? 'NHRE User');
@@ -19,9 +26,6 @@ $role = $profile['role'] ?? ($_SESSION['role'] ?? 'User');
 $phone = $profile['phone'] ?? '';
 $nid = $profile['nid'] ?? '';
 $account_number = $profile['account_number'] ?? '';
-if ($account_number === '') {
-    $account_number = 'NHRE-' . $user_id;
-}
 $date_of_birth = '';
 if (!empty($profile['date_of_birth'])) {
     try {
@@ -38,6 +42,20 @@ $blood_group = $profile['blood_group'] ?? '';
 $marital_status = $profile['marital_status'] ?? '';
 $occupation = $profile['occupation'] ?? '';
 $profile_photo = $profile['profile_photo'] ?? '';
+$cartoon_avatar_options = [
+    'kind-caregiver' => 'Kind caregiver',
+    'bright-clinician' => 'Bright clinician',
+    'friendly-helper' => 'Friendly helper',
+    'calm-specialist' => 'Calm specialist',
+    'happy-neighbor' => 'Happy neighbor',
+    'trusted-guide' => 'Trusted guide',
+];
+
+function profile_cartoon_avatar_url(string $seed): string
+{
+    return 'https://api.dicebear.com/9.x/avataaars/svg?seed=' . rawurlencode($seed)
+        . '&backgroundColor=b6e3f4,c0aede,d1d4f9&radius=50';
+}
 
 function render_profile_value(mixed $value): string
 {
@@ -58,7 +76,7 @@ function render_profile_value(mixed $value): string
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
 <script>
   (function () {
     try {
@@ -157,6 +175,26 @@ function render_profile_value(mixed $value): string
                 </div>
               <?php endif; ?>
             </div>
+            <div class="cartoon-avatar-picker mt-4 text-start">
+              <h3 class="h6 mb-1">Choose a cartoon profile picture</h3>
+              <p class="small text-muted mb-3">Select an avatar that feels like you, then save your choice.</p>
+              <form action="auth/profile_avatar_process.php" method="POST">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <div class="cartoon-avatar-options">
+                  <?php foreach ($cartoon_avatar_options as $seed => $label): ?>
+                    <?php $avatar_url = profile_cartoon_avatar_url($seed); ?>
+                    <label class="cartoon-avatar-option" title="<?= e($label) ?>">
+                      <input type="radio" name="cartoon_avatar" value="<?= e($seed) ?>" <?= $profile_photo === $avatar_url ? 'checked' : '' ?>>
+                      <img src="<?= e($avatar_url) ?>" alt="<?= e($label) ?> cartoon avatar">
+                      <span class="visually-hidden"><?= e($label) ?></span>
+                    </label>
+                  <?php endforeach; ?>
+                </div>
+                <button type="submit" class="btn btn-outline-primary btn-sm w-100 mt-3">
+                  <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Save cartoon picture
+                </button>
+              </form>
+            </div>
           </article>
         </div>
 
@@ -205,9 +243,10 @@ function render_profile_value(mixed $value): string
                 </div>
                 <div class="col-md-6">
                   <div class="form-floating">
-                    <input type="text" class="form-control" id="account_number" name="account_number" placeholder="Account Number" value="<?= e($profile['account_number'] ?? '') ?>">
-                    <label for="account_number"><i class="fa-solid fa-hashtag"></i> Account Number</label>
+                    <input type="text" class="form-control" id="account_number" value="<?= e($account_number) ?>" readonly>
+                    <label for="account_number"><i class="fa-solid fa-hashtag"></i> NHRE Account Number</label>
                   </div>
+                  <small class="text-muted">Assigned and managed by NHRE.</small>
                 </div>
                 <div class="col-md-6">
                   <div class="form-floating">
@@ -299,6 +338,6 @@ function render_profile_value(mixed $value): string
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

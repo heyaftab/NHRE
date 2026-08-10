@@ -8,17 +8,20 @@ NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landin
 
 - Registration for Patient, Doctor, Pharmacist, and Lab Technician roles (Hospital Admin and System Admin are provisioned by administrators and cannot be self-registered)
 - Login sessions, CSRF protection, password hashing, failed-login throttling, and optional remember-me tokens
-- Profile management with optional profile-photo uploads (maximum 2 MB)
+- Profile management with optional profile-photo uploads (maximum 2 MB) and a choice of saved cartoon avatars
 - In-app notifications with unread counts and a mark-all-read action
 - Shared responsive, collapsible sidebar navigation with role-specific links and unread-notification access
 - Patient-controlled data access: grant/revoke record access to doctors and hospitals, pending access requests, and an access history audit log
 - Doctor patient search (by name, NID, phone, email) with consent-gated access to authorized records
 - Appointment scheduling: patients can find doctors and book or cancel appointments; doctors can manage assigned appointments; Hospital Admins can oversee them
+- Doctor ratings & reviews: patients rate and review doctors (one review per patient, updatable), with star-based display and rating-aware featured-doctor/filter logic
 - Medical-test marketplace with filtering, bookings, lab-technician status updates, and result-file uploads
 - Vaccination schedule interface and patient-specific doctor-report viewing
 - Pharmacy medicine catalogue and pharmacy-support request workflow
 - Blood donor registration, blood requests, donor directory, and donor eligibility tracking
 - Password reset links generated in the application for local development
+- Public landing-page destinations for NHRE mission, leadership, newsroom, services, resources, and contact information
+- Standalone Privacy Policy and Terms & Conditions pages, shown only when their respective links are selected
 - Responsive Bootstrap interface with custom CSS and JavaScript
 
 ## Technology
@@ -48,8 +51,11 @@ NHRE/
 ├── uploads/profile_pics/         # Created automatically after a photo upload
 ├── uploads/test_results/         # Lab-result files; created automatically when needed
 ├── index.php                     # Public landing page
+├── site_page.php                 # Public About, Services, Resources, and Contact pages
+├── privacy_policy.php             # Public Privacy Policy page
+├── terms_conditions.php           # Public Terms & Conditions page
 ├── dashboard.php                 # Authenticated home
-├── profile.php                   # Profile view and editor
+├── profile.php                   # Profile view, editor, and cartoon-avatar picker
 ├── notifications.php             # Notification list
 ├── appointments.php              # Doctor discovery and appointment management
 ├── medical_tests.php             # Medical-test catalogue and bookings
@@ -105,14 +111,22 @@ php -S localhost:8000
 
 Then visit [http://localhost:8000](http://localhost:8000).
 
-## First account
+## Accounts and demo access
 
 The normal route is to create an account at `register.php`. Passwords must contain at least eight characters, including uppercase, lowercase, numeric, and symbol characters.
 
-The SQL file also contains commented demo Hospital Admin and System Admin inserts. Uncomment them before importing (or run them separately) to enable:
+Use the **Demo accounts** table on `login.php` to fill the sign-in form quickly. Opening the login page automatically prepares the Hospital Admin, System Admin, Pharmacist, and Lab Technician demo accounts. The demo patient and doctor catalogue are seeded when the Appointments workspace is initialized.
 
-- Hospital Admin: `admin@nhre.gov` / `Admin123!`
-- System Admin: `sysadmin@nhre.gov` / `SysAdmin123!`
+| Role | Email | Password |
+| --- | --- | --- |
+| Patient | `patient@nhre.gov` | `Patient123!` |
+| Doctor | `doctor001@nhre.dev` | `Doctor123!` |
+| Pharmacist | `pharmacist@nhre.gov` | `Pharmacist123!` |
+| Lab Technician | `lab@nhre.gov` | `Lab123!` |
+| Hospital Admin | `admin@nhre.gov` | `Admin123!` |
+| System Admin | `sysadmin@nhre.gov` | `SysAdmin123!` |
+
+The login-page cards show the saved profile picture for each demo account. If an account has not uploaded a photo, NHRE displays a stable cartoon avatar instead.
 
 Do not retain demo credentials in any deployed environment.
 
@@ -136,8 +150,10 @@ This prototype does not send email. After a valid email is submitted at `forgot_
 
 ## Data and role notes
 
-- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`. Patient data-access tables (`access_permissions`, `access_logs`) and `pharmacy_requests` are also created.
-- The application recognizes six roles: Patient, Doctor, Pharmacist, Lab Technician, Hospital Admin, and System Admin. Self-registration supports Patient, Doctor, Pharmacist, and Lab Technician only; Hospital Admin and System Admin accounts are provisioned by an administrator (seed inserts in `database/nhre.sql`).
+- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`. Patient data-access tables (`access_permissions`, `access_logs`), `pharmacy_requests`, and doctor ratings/reviews (`doctor_ratings`) are also created.
+- The application recognizes six roles: Patient, Doctor, Pharmacist, Lab Technician, Hospital Admin, and System Admin. Self-registration supports Patient, Doctor, Pharmacist, and Lab Technician only; Hospital Admin and System Admin demo accounts are provisioned automatically for local demonstration.
+- Profile pictures can be uploaded or selected from the Account Summary cartoon-avatar picker. Cartoon avatars are delivered by the DiceBear avatar service; a network connection is required for those SVGs to load.
+- The public footer links to dedicated About, Services, Resources, Contact, Privacy Policy, and Terms & Conditions pages. These informational pages are not shown in the authenticated navigation.
 - The authenticated sidebar is role-aware and only links to a role's existing workspaces or clearly labeled planned workspaces. Planned workspaces enforce their allowed roles on the server and do not expose patient records.
 - Patient data access: patients grant or revoke record access (Medical History, Lab Reports, Prescriptions, Vaccinations, Allergies, Medical Documents) to individual doctors or to hospitals. Doctors can request access, which appears as a pending request for the patient to approve or reject. `authorized_records.php` enforces an active, unexpired permission server-side and writes to the access log.
 - Hospital-only donor controls and appointment administration are shown conditionally in the interface; server-side role authorization should be strengthened before deployment.

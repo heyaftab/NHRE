@@ -12,6 +12,7 @@ $success = session_pull('success');
 $today = date('Y-m-d');
 $appointment_statuses = ['Pending', 'Approved', 'Completed', 'Cancelled', 'Rejected'];
 $doctor_list = [];
+$doctor_list_all = [];
 $selected_doctor = null;
 $appointments = [];
 $filter_patient = trim((string)($_GET['patient'] ?? ''));
@@ -25,6 +26,14 @@ $doctor_specialization = trim((string)($_GET['doctor_specialization'] ?? ''));
 $selected_doctor_id = (int)($_GET['doctor_id'] ?? 0);
 $show_specialization_view = isset($_GET['view_specialization']) && $_GET['view_specialization'] === '1';
 $current_user_district = '';
+
+/** Return a stable, distinct cartoon portrait for each doctor in the catalog. */
+function doctor_cartoon_avatar(array $doctor): string
+{
+    $seed = 'nhre-doctor-' . (string)($doctor['id'] ?? 'default');
+    return 'https://api.dicebear.com/9.x/avataaars/svg?seed=' . rawurlencode($seed)
+        . '&backgroundColor=b6e3f4,c0aede,d1d4f9&radius=50';
+}
 
 try {
     ensure_doctor_profile_columns();
@@ -57,6 +66,8 @@ try {
             $doctor['specialization'] = $doctor['specialization'] ?: ($doctor['specialization_name'] ?? '');
             return $doctor;
         }, $doctor_rows);
+
+        $doctor_list_all = $doctor_list;
 
         $doctor_min_rating = (float)($_GET['doctor_min_rating'] ?? 0);
         $doctor_min_experience = (int)($_GET['doctor_min_experience'] ?? 0);
@@ -114,6 +125,13 @@ try {
                     break;
                 }
             }
+        }
+
+        $doctor_reviews = [];
+        $patient_review = null;
+        if ($selected_doctor !== null) {
+            $doctor_reviews = get_doctor_reviews((int)$selected_doctor['id'], 30);
+            $patient_review = get_patient_review((int)$selected_doctor['id'], (int)($_SESSION['user_id'] ?? 0));
         }
 
         $featured_doctors = array_values(array_filter($doctor_rows, static function ($doctor) use ($current_user_district): bool {
@@ -215,7 +233,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
 </head>
 <body class="dashboard-body">
   <?php require __DIR__ . '/includes/sidebar.php'; ?>
@@ -285,7 +303,7 @@ try {
                   <label class="form-label">District</label>
                   <select class="form-select" name="doctor_district">
                     <option value="">All districts</option>
-                    <?php $districts = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['district'] ?? ''); }, $doctor_list)))); sort($districts); foreach ($districts as $district): ?>
+                    <?php $districts = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['district'] ?? ''); }, $doctor_list_all)))); sort($districts); foreach ($districts as $district): ?>
                       <option value="<?= e($district) ?>" <?= $doctor_district === $district ? 'selected' : '' ?>><?= e($district) ?></option>
                     <?php endforeach; ?>
                   </select>
@@ -294,7 +312,7 @@ try {
                   <label class="form-label">Hospital</label>
                   <select class="form-select" name="doctor_hospital">
                     <option value="">All hospitals</option>
-                    <?php $hospitals = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['hospital_name'] ?? ''); }, $doctor_list)))); sort($hospitals); foreach ($hospitals as $hospital): ?>
+                    <?php $hospitals = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['hospital_name'] ?? ''); }, $doctor_list_all)))); sort($hospitals); foreach ($hospitals as $hospital): ?>
                       <option value="<?= e($hospital) ?>" <?= $doctor_hospital === $hospital ? 'selected' : '' ?>><?= e($hospital) ?></option>
                     <?php endforeach; ?>
                   </select>
@@ -303,7 +321,7 @@ try {
                   <label class="form-label">Specialization</label>
                   <select class="form-select" name="doctor_specialization">
                     <option value="">All specializations</option>
-                    <?php $specials = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['specialization'] ?? ''); }, $doctor_list)))); sort($specials); foreach ($specials as $special): ?>
+                    <?php $specials = array_values(array_unique(array_filter(array_map(function ($doctor) { return (string)($doctor['specialization'] ?? ''); }, $doctor_list_all)))); sort($specials); foreach ($specials as $special): ?>
                       <option value="<?= e($special) ?>" <?= $doctor_specialization === $special ? 'selected' : '' ?>><?= e($special) ?></option>
                     <?php endforeach; ?>
                   </select>
@@ -350,9 +368,14 @@ try {
                   <?php foreach ($featured_doctors as $featured): ?>
                     <div class="col-md-4">
                       <div class="border rounded p-3 h-100">
-                        <div class="fw-semibold"><?= e($featured['fullname']) ?></div>
-                        <div class="text-muted small"><?= e($featured['specialization'] ?: 'General Physician') ?></div>
-                        <div class="text-muted small">⭐ <?= e($featured['rating'] ?? '4.5') ?> (<?= e($featured['reviews_count'] ?? '0') ?> reviews)</div>
+                        <div class="doctor-card-heading">
+                          <img class="doctor-cartoon-avatar" src="<?= e(doctor_cartoon_avatar($featured)) ?>" alt="Cartoon portrait of <?= e($featured['fullname']) ?>">
+                          <div>
+                            <div class="fw-semibold"><?= e($featured['fullname']) ?></div>
+                            <div class="text-muted small"><?= e($featured['specialization'] ?: 'General Physician') ?></div>
+                          </div>
+                        </div>
+                        <div class="text-muted small"><?= render_rating_stars((float)($featured['rating'] ?? 0)) ?> <strong><?= e(round((float)($featured['rating'] ?? 0), 1)) ?></strong> (<?= e($featured['reviews_count'] ?? '0') ?> reviews)</div>
                         <div class="text-muted small"><?= e($featured['hospital_name'] ?: 'Hospital not listed') ?></div>
                         <div class="text-muted small"><?= e($featured['district'] ?: 'Location not listed') ?></div>
                         <div class="text-muted small">Fee: <?= e($featured['consultation_fee'] ?? 'N/A') ?></div>
@@ -377,12 +400,15 @@ try {
                 <?php if ($doctor_list): ?>
                   <?php foreach ($doctor_list as $doctor): ?>
                     <div class="list-group-item d-flex flex-column flex-lg-row justify-content-between gap-3">
-                      <div>
-                        <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
+                      <div class="doctor-result-info">
+                        <img class="doctor-cartoon-avatar doctor-cartoon-avatar--result" src="<?= e(doctor_cartoon_avatar($doctor)) ?>" alt="Cartoon portrait of <?= e($doctor['fullname']) ?>">
+                        <div>
+                          <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
                         <div class="text-muted small"><?= e($doctor['specialization'] ?: 'General Physician') ?></div>
                         <div class="text-muted small"><?= e($doctor['qualification'] ?: 'Qualified doctor') ?></div>
                         <div class="text-muted small"><?= e($doctor['hospital_name'] ?: 'Hospital not listed') ?> • <?= e($doctor['district'] ?: 'Location not listed') ?></div>
                         <div class="text-muted small">Experience: <?= e($doctor['experience_years'] ?? 'N/A') ?> years • Fee: <?= e($doctor['consultation_fee'] ?? 'N/A') ?></div>
+                        </div>
                       </div>
                       <div class="d-flex gap-2 align-items-start">
                         <a href="appointments.php?doctor_id=<?= e($doctor['id']) ?>#doctor-profile" class="btn btn-outline-primary btn-sm">View profile</a>
@@ -411,9 +437,13 @@ try {
                       <div class="list-group">
                         <?php foreach ($group as $doctor): ?>
                           <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                              <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
-                              <div class="text-muted small"><?= e($doctor['hospital_name'] ?: 'Hospital not listed') ?> • <?= e($doctor['district'] ?: 'Location not listed') ?></div>
+                            <div class="doctor-result-info">
+                              <img class="doctor-cartoon-avatar doctor-cartoon-avatar--small" src="<?= e(doctor_cartoon_avatar($doctor)) ?>" alt="Cartoon portrait of <?= e($doctor['fullname']) ?>">
+                              <div>
+                                <div class="fw-semibold"><?= e($doctor['fullname']) ?></div>
+                        <div class="text-muted small"><?= render_rating_stars((float)($doctor['rating'] ?? 0)) ?> <strong><?= e(round((float)($doctor['rating'] ?? 0), 1)) ?></strong> (<?= e($doctor['reviews_count'] ?? '0') ?> reviews)</div>
+                        <div class="text-muted small"><?= e($doctor['hospital_name'] ?: 'Hospital not listed') ?> • <?= e($doctor['district'] ?: 'Location not listed') ?></div>
+                              </div>
                             </div>
                             <a href="appointments.php?doctor_id=<?= e($doctor['id']) ?>#doctor-profile" class="btn btn-outline-primary btn-sm">View profile</a>
                           </div>
@@ -435,14 +465,19 @@ try {
               <?php if ($selected_doctor): ?>
                 <div class="row g-4 mt-2">
                   <div class="col-lg-7">
-                    <h4><?= e($selected_doctor['fullname']) ?></h4>
-                    <p class="mb-2"><strong><?= e($selected_doctor['specialization'] ?: 'General Physician') ?></strong></p>
+                    <div class="doctor-profile-heading">
+                      <img class="doctor-cartoon-avatar doctor-cartoon-avatar--profile" src="<?= e(doctor_cartoon_avatar($selected_doctor)) ?>" alt="Cartoon portrait of <?= e($selected_doctor['fullname']) ?>">
+                      <div>
+                        <h4><?= e($selected_doctor['fullname']) ?></h4>
+                        <p class="mb-2"><strong><?= e($selected_doctor['specialization'] ?: 'General Physician') ?></strong></p>
+                      </div>
+                    </div>
                     <p class="mb-2">Qualification: <?= e($selected_doctor['qualification'] ?: 'Not listed') ?></p>
                     <p class="mb-2">Hospital: <?= e($selected_doctor['hospital_name'] ?: 'Not listed') ?></p>
                     <p class="mb-2">Location: <?= e($selected_doctor['district'] ?: 'Not listed') ?> • <?= e($selected_doctor['address'] ?: 'Address not listed') ?></p>
                     <p class="mb-2">Experience: <?= e($selected_doctor['experience_years'] ?? 'N/A') ?> years</p>
                     <p class="mb-2">Consultation Fee: <?= e($selected_doctor['consultation_fee'] ?? 'N/A') ?></p>
-                    <p class="mb-2">Rating: <?= e($selected_doctor['rating'] ?? 'N/A') ?> (<?= e($selected_doctor['reviews_count'] ?? '0') ?> reviews)</p>
+                    <p class="mb-2">Rating: <?= render_rating_stars((float)($selected_doctor['rating'] ?? 0)) ?> <strong><?= e(round((float)($selected_doctor['rating'] ?? 0), 1)) ?></strong> (<?= e($selected_doctor['reviews_count'] ?? '0') ?> reviews)</p>
                     <p class="mb-2">Visiting Hours: <?= e($selected_doctor['visiting_hours'] ?: 'Daily clinic availability shared on request') ?></p>
                     <?php if (!empty($selected_doctor['bio'])): ?><p class="mb-2">Bio: <?= e($selected_doctor['bio']) ?></p><?php endif; ?>
                     <?php if (!empty($selected_doctor['awards'])): ?><p class="mb-2">Awards: <?= e($selected_doctor['awards']) ?></p><?php endif; ?>
@@ -468,6 +503,71 @@ try {
                         <textarea class="form-control" name="reason" rows="4" maxlength="1000" required></textarea>
                       </div>
                       <button type="submit" class="btn btn-solid-nhre w-100">Book Appointment</button>
+                    </form>
+                  </div>
+                </div>
+
+                <hr class="my-4">
+                <div class="row g-4">
+                  <div class="col-lg-6">
+                    <h4><i class="fa-solid fa-star text-warning me-1"></i>Patient reviews</h4>
+                    <p class="text-muted">
+                      Average rating
+                      <strong><?= e(round((float)($selected_doctor['rating'] ?? 0), 1)) ?></strong> / 5
+                      from <?= e($selected_doctor['reviews_count'] ?? 0) ?> review(s).
+                    </p>
+                    <?php if ($doctor_reviews): ?>
+                      <?php foreach ($doctor_reviews as $review): ?>
+                        <div class="review-item">
+                          <div class="review-head">
+                            <span class="sidebar-avatar"><?= e(strtoupper(mb_substr(trim((string)$review['patient_name']), 0, 1))) ?></span>
+                            <div>
+                              <strong><?= e($review['patient_name']) ?></strong>
+                              <div class="d-flex align-items-center gap-2">
+                                <?= render_rating_stars((float)$review['rating']) ?>
+                                <small class="text-muted"><?= e(date('j M Y', strtotime((string)$review['updated_at']))) ?></small>
+                              </div>
+                            </div>
+                          </div>
+                          <?php if (!empty($review['review'])): ?>
+                            <p class="review-text mb-0"><?= e($review['review']) ?></p>
+                          <?php endif; ?>
+                        </div>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <p class="text-muted">No written reviews yet. Be the first to share your experience.</p>
+                    <?php endif; ?>
+                  </div>
+                  <div class="col-lg-6">
+                    <h4><i class="fa-solid fa-pen-nib me-1"></i><?= $patient_review ? 'Update your review' : 'Rate this doctor' ?></h4>
+                    <form action="auth/doctor_review_process.php" method="POST" class="mt-3">
+                      <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                      <input type="hidden" name="doctor_id" value="<?= e($selected_doctor['id']) ?>">
+                      <div class="mb-3">
+                        <label class="form-label d-block">Your rating</label>
+                        <div class="star-picker">
+                          <input type="radio" id="star-5" name="rating" value="5" <?= ($patient_review['rating'] ?? 0) == 5 ? 'checked' : '' ?>>
+                          <label for="star-5" title="5 - Excellent"><i class="fa-solid fa-star"></i></label>
+                          <input type="radio" id="star-4" name="rating" value="4" <?= ($patient_review['rating'] ?? 0) == 4 ? 'checked' : '' ?>>
+                          <label for="star-4" title="4 - Good"><i class="fa-solid fa-star"></i></label>
+                          <input type="radio" id="star-3" name="rating" value="3" <?= ($patient_review['rating'] ?? 0) == 3 ? 'checked' : '' ?>>
+                          <label for="star-3" title="3 - Average"><i class="fa-solid fa-star"></i></label>
+                          <input type="radio" id="star-2" name="rating" value="2" <?= ($patient_review['rating'] ?? 0) == 2 ? 'checked' : '' ?>>
+                          <label for="star-2" title="2 - Poor"><i class="fa-solid fa-star"></i></label>
+                          <input type="radio" id="star-1" name="rating" value="1" <?= ($patient_review['rating'] ?? 0) == 1 ? 'checked' : '' ?>>
+                          <label for="star-1" title="1 - Very poor"><i class="fa-solid fa-star"></i></label>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label" for="review-text">Your review <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="review-text" name="review" rows="4" maxlength="1000" placeholder="Share your experience with this doctor."><?= e((string)($patient_review['review'] ?? '')) ?></textarea>
+                      </div>
+                      <button type="submit" class="btn btn-solid-nhre w-100">
+                        <i class="fa-solid fa-paper-plane me-1"></i><?= $patient_review ? 'Update review' : 'Submit review' ?>
+                      </button>
+                      <?php if ($patient_review): ?>
+                        <small class="text-muted d-block mt-2">You already reviewed this doctor. Submitting again will update your rating.</small>
+                      <?php endif; ?>
                     </form>
                   </div>
                 </div>
@@ -704,5 +804,8 @@ try {
       <?php endif; ?>
     </section>
   </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<iframe id="f" src="/NHRE/register.php" style="width:1440px;height:600px;border:0"></iframe>
+<div id="results" style="font-family:monospace;white-space:pre"></div>
+<script>
+  const iframe = document.getElementById('f');
+  iframe.onload = function () {
+    setTimeout(() => {
+      const doc = iframe.contentDocument;
+      const out = [];
+      const input = doc.getElementById('fullname');
+      const label = input.parentElement.querySelector('label');
+      input.value = 'TEST';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+      setTimeout(() => {
+        const cs = doc.defaultView.getComputedStyle(label);
+        const inpCS = doc.defaultView.getComputedStyle(input);
+        const after = doc.defaultView.getComputedStyle(label, '::after');
+        out.push('input matches :not(:placeholder-shown) = ' + input.matches('.form-control:not(:placeholder-shown)'));
+        out.push('label matches float selector    = ' + label.matches('.form-floating > .form-control:not(:placeholder-shown) ~ label'));
+        out.push('label matches focus selector    = ' + label.matches('.form-floating > .form-control:focus ~ label'));
+        out.push('label matches plain selector    = ' + label.matches('.form-floating > .form-control-plaintext ~ label'));
+        out.push('label matches select selector   = ' + label.matches('.form-floating > .form-select ~ label'));
+        out.push('label.matches("label")          = ' + label.matches('label'));
+        out.push('input parent class              = ' + input.parentElement.className);
+        out.push('input prev sibling of label     = ' + (label.previousElementSibling === input));
+        out.push('computed label transform        = ' + cs.transform);
+        out.push('computed label transition       = ' + cs.transition);
+        out.push('computed label padding          = ' + cs.padding);
+        out.push('computed label ::after bg       = ' + after.backgroundColor + ' inset=' + after.inset + ' height=' + after.height);
+        out.push('input computed height/min-height= ' + inpCS.height + ' / ' + inpCS.minHeight + ' / padTop=' + inpCS.paddingTop);
+        doc.getElementById('results').textContent = out.join('\n');
+      }, 300);
+    }, 600);
+  };
+</script>
+</body>
+</html>

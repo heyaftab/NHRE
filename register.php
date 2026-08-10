@@ -16,7 +16,7 @@ $roles = self_service_roles();
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-12">
 <script>
   (function () {
     try {
@@ -32,32 +32,38 @@ $roles = self_service_roles();
 </head>
 <body class="auth-body">
   <main class="auth-page">
-    <a class="auth-brand" href="index.php" aria-label="Back to NHRE home">
-      <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
-    </a>
-
-    <section class="auth-shell container">
-      <div class="row g-4 align-items-center justify-content-center">
-        <div class="col-xl-5 d-none d-xl-block">
+    <section class="auth-shell auth-shell--split container">
+      <div class="row g-0 align-items-stretch justify-content-center">
+        <div class="col-xl-4 d-none d-xl-block">
           <div class="auth-info-panel">
-            <div class="auth-info-icon"><i class="fa-solid fa-notes-medical"></i></div>
-            <h1>Create one verified healthcare identity.</h1>
-            <p>Register as a patient or provider stakeholder to join the National Healthcare Record Exchange.</p>
+            <div class="auth-info-brand">
+              <img src="assets/images/nhre-logo.svg" alt="" class="auth-info-logo" aria-hidden="true">
+              <div class="auth-info-brand-text">
+                <span class="auth-info-name">NHRE</span>
+                <span class="auth-info-sub">National Healthcare Record Exchange</span>
+              </div>
+            </div>
+            <div class="auth-trust-pill"><i class="fa-solid fa-shield-halved"></i> Trusted. Secure. Connected.</div>
+            <h1>Create your healthcare identity for a <em>better tomorrow</em></h1>
+            <span class="auth-info-rule"></span>
+            <p>Join the National Healthcare Record Exchange and securely manage your health information in one place.</p>
             <div class="auth-info-list">
-              <span><i class="fa-solid fa-id-card"></i> NID verified account</span>
-              <span><i class="fa-solid fa-user-doctor"></i> Healthcare role access</span>
-              <span><i class="fa-solid fa-file-shield"></i> Secure medical data</span>
+              <span><i class="fa-solid fa-shield-heart"></i><b>Secure &amp; Private</b><small>Your data is protected with advanced encryption.</small></span>
+              <span><i class="fa-solid fa-share-nodes"></i><b>Connected Healthcare</b><small>Share records securely with trusted providers.</small></span>
+              <span><i class="fa-solid fa-file-medical"></i><b>Complete Records</b><small>Access your medical history, reports, and prescriptions.</small></span>
             </div>
           </div>
         </div>
 
-        <div class="col-xl-7 col-lg-9">
+        <div class="col-xl-8 col-lg-9">
           <div class="card auth-card glass-card">
             <div class="card-body">
-              <div class="auth-card-head">
-                <span class="auth-kicker">Create account</span>
+              <a class="auth-back-link" href="index.php"><i class="fa-solid fa-arrow-left"></i> Back to home</a>
+              <div class="auth-card-head auth-card-head--with-badge">
+                <div><span class="auth-kicker">Create account</span>
                 <h2>Register for NHRE</h2>
-                <p>All fields are required for a secure healthcare identity.</p>
+                <p>Set up your secure healthcare identity.</p></div>
+                <div class="auth-security-badge"><i class="fa-solid fa-shield-halved"></i><span><b>Your data is safe</b>and encrypted</span></div>
               </div>
 
               <?php if ($errors): ?>
@@ -84,7 +90,7 @@ $roles = self_service_roles();
 
                   <div class="col-md-6">
                     <div class="form-floating">
-                      <input type="text" class="form-control" id="nid" name="nid" placeholder="National ID" value="<?= e($old['nid'] ?? '') ?>" required pattern="[0-9]{10,20}">
+                      <input type="text" class="form-control" id="nid" name="nid" placeholder="National ID" value="<?= e($old['nid'] ?? '') ?>" required inputmode="numeric" autocomplete="off" maxlength="20" pattern="[0-9]{10,20}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                       <label for="nid"><i class="fa-solid fa-id-card"></i> National ID (NID)</label>
                       <div class="invalid-feedback">Enter a 10 to 20 digit National ID.</div>
                     </div>
@@ -103,13 +109,6 @@ $roles = self_service_roles();
                       <input type="tel" class="form-control" id="phone" name="phone" placeholder="+880..." value="<?= e($old['phone'] ?? '') ?>" required pattern="^\+?[0-9][0-9\s().-]{7,19}$">
                       <label for="phone"><i class="fa-solid fa-phone"></i> Phone Number</label>
                       <div class="invalid-feedback">Enter a valid phone number.</div>
-                    </div>
-                  </div>
-
-                  <div class="col-md-6">
-                    <div class="form-floating">
-                      <input type="text" class="form-control" id="account_number" name="account_number" placeholder="NHRE-1001" value="<?= e($old['account_number'] ?? '') ?>">
-                      <label for="account_number"><i class="fa-solid fa-hashtag"></i> Account Number</label>
                     </div>
                   </div>
 
@@ -210,18 +209,24 @@ $roles = self_service_roles();
                   </div>
 
                   <div class="col-12">
-                    <div class="form-floating">
-                      <select class="form-select" id="role" name="role" required>
-                        <option value="" <?= empty($old['role']) ? 'selected' : '' ?>>Choose a role</option>
+                    <fieldset class="role-picker">
+                      <legend><i class="fa-solid fa-users"></i> User Role</legend>
+                      <div class="role-picker-options">
                         <?php foreach ($roles as $role): ?>
-                          <option value="<?= e($role) ?>" <?= (($old['role'] ?? '') === $role) ? 'selected' : '' ?>><?= e($role) ?></option>
+                          <?php $roleId = 'role-' . strtolower(str_replace(' ', '-', $role)); ?>
+                          <input class="btn-check" type="radio" name="role" id="<?= e($roleId) ?>" value="<?= e($role) ?>" <?= (($old['role'] ?? '') === $role || (!$old && $role === 'Patient')) ? 'checked' : '' ?> required>
+                          <label for="<?= e($roleId) ?>"><i class="fa-solid <?= $role === 'Patient' ? 'fa-user' : ($role === 'Doctor' ? 'fa-user-doctor' : ($role === 'Hospital Staff' ? 'fa-hospital' : ($role === 'Laboratory' ? 'fa-microscope' : 'fa-pills'))) ?>"></i><?= e($role) ?></label>
                         <?php endforeach; ?>
-                      </select>
-                      <label for="role"><i class="fa-solid fa-user-shield"></i> User Role</label>
-                      <div class="invalid-feedback">Please select a user role.</div>
-                    </div>
-                    <small class="text-muted">Hospital Admin and System Admin accounts are provisioned by the NHRE administration and cannot be self-registered.</small>
+                      </div>
+                    </fieldset>
+                    <small class="text-muted">Administrative accounts are provisioned by NHRE administration.</small>
                   </div>
+                </div>
+
+                <div class="form-check auth-terms mt-4">
+                  <input class="form-check-input" type="checkbox" value="1" id="terms" required>
+                  <label class="form-check-label" for="terms">I agree to the <a href="terms_conditions.php">Terms of Service</a> and <a href="privacy_policy.php">Privacy Policy</a></label>
+                  <div class="invalid-feedback">Please accept the terms to continue.</div>
                 </div>
 
                 <button type="submit" class="btn btn-auth-primary ripple w-100 mt-4">
@@ -239,6 +244,6 @@ $roles = self_service_roles();
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-3"></script>
+  <script src="assets/js/app.js?v=20260807-5"></script>
 </body>
 </html>

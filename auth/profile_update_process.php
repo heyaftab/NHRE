@@ -18,7 +18,6 @@ if ($user_id <= 0) {
 $fullname = trim((string)($_POST['fullname'] ?? ''));
 $email = strtolower(trim((string)($_POST['email'] ?? '')));
 $phone = trim((string)($_POST['phone'] ?? ''));
-$account_number = trim((string)($_POST['account_number'] ?? ''));
 $date_of_birth = trim((string)($_POST['date_of_birth'] ?? ''));
 $nationality = trim((string)($_POST['nationality'] ?? ''));
 $gender = trim((string)($_POST['gender'] ?? ''));
@@ -82,10 +81,6 @@ if (!preg_match('/^\+?[0-9][0-9\s().\-]{7,19}$/', $phone)) {
     $errors[] = 'Enter a valid phone number.';
 }
 
-if ($account_number !== '' && !preg_match('/^[A-Za-z0-9-]{2,50}$/', $account_number)) {
-    $errors[] = 'Account number can only contain letters, numbers, or hyphens.';
-}
-
 if ($date_of_birth !== '' && DateTimeImmutable::createFromFormat('Y-m-d', $date_of_birth) === false) {
     $errors[] = 'Enter a valid date of birth.';
 }
@@ -95,7 +90,7 @@ if ($errors) {
         unlink($uploaded_photo_file);
     }
     $_SESSION['errors'] = $errors;
-    $_SESSION['old'] = compact('fullname', 'email', 'phone', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
+    $_SESSION['old'] = compact('fullname', 'email', 'phone', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
     redirect('../profile.php');
 }
 
@@ -104,18 +99,17 @@ try {
     $stmt->execute([$email, $phone, $user_id]);
     if ($stmt->fetch()) {
         $_SESSION['errors'] = ['That email or phone number already belongs to another account.'];
-        $_SESSION['old'] = compact('fullname', 'email', 'phone', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
+        $_SESSION['old'] = compact('fullname', 'email', 'phone', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
         redirect('../profile.php');
     }
 
     $stmt = db()->prepare(
-        'UPDATE users SET fullname = ?, email = ?, phone = ?, account_number = ?, date_of_birth = ?, nationality = ?, gender = ?, address = ?, emergency_contact = ?, blood_group = ?, marital_status = ?, occupation = ?, profile_photo = ? WHERE id = ?'
+        'UPDATE users SET fullname = ?, email = ?, phone = ?, date_of_birth = ?, nationality = ?, gender = ?, address = ?, emergency_contact = ?, blood_group = ?, marital_status = ?, occupation = ?, profile_photo = ? WHERE id = ?'
     );
     $stmt->execute([
         $fullname,
         $email,
         $phone,
-        $account_number !== '' ? $account_number : null,
         $date_of_birth !== '' ? $date_of_birth : null,
         $nationality !== '' ? $nationality : null,
         $gender !== '' ? $gender : null,

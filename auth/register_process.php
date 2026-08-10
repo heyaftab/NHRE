@@ -16,7 +16,6 @@ $fullname = trim($_POST['fullname'] ?? '');
 $nid = trim($_POST['nid'] ?? '');
 $email = strtolower(trim($_POST['email'] ?? ''));
 $phone = trim($_POST['phone'] ?? '');
-$account_number = trim($_POST['account_number'] ?? '');
 $date_of_birth = trim($_POST['date_of_birth'] ?? '');
 $nationality = trim($_POST['nationality'] ?? '');
 $gender = trim($_POST['gender'] ?? '');
@@ -47,10 +46,6 @@ if (!preg_match('/^\+?[0-9][0-9\s().\-]{7,19}$/', $phone)) {
     $errors[] = 'Enter a valid phone number.';
 }
 
-if ($account_number !== '' && !preg_match('/^[A-Za-z0-9-]{2,50}$/', $account_number)) {
-    $errors[] = 'Account number can only contain letters, numbers, or hyphens.';
-}
-
 if ($date_of_birth !== '' && DateTimeImmutable::createFromFormat('Y-m-d', $date_of_birth) === false) {
     $errors[] = 'Enter a valid date of birth.';
 }
@@ -69,7 +64,7 @@ if (!in_array($role, self_service_roles(), true)) {
 
 if ($errors) {
     $_SESSION['errors'] = $errors;
-    $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
+    $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
     redirect('../register.php');
 }
 
@@ -79,12 +74,12 @@ try {
 
     if ($stmt->fetch()) {
         $_SESSION['errors'] = ['An account with that email, National ID, or phone number already exists.'];
-        $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
+        $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
         redirect('../register.php');
     }
 
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    $account_number_value = $account_number !== '' ? $account_number : null;
+    $account_number_value = null;
     $date_of_birth_value = $date_of_birth !== '' ? $date_of_birth : null;
     $nationality_value = $nationality !== '' ? $nationality : null;
     $gender_value = $gender !== '' ? $gender : null;
@@ -100,10 +95,15 @@ try {
     );
     $stmt->execute([$fullname, $nid, $email, $phone, $hash, $role, $account_number_value, $date_of_birth_value, $nationality_value, $gender_value, $address_value, $emergency_contact_value, $blood_group_value, $marital_status_value, $occupation_value]);
 
+    $new_user_id = (int)db()->lastInsertId();
+    $assigned_account_number = 'NHRE-' . str_pad((string)$new_user_id, 8, '0', STR_PAD_LEFT);
+    $stmt = db()->prepare('UPDATE users SET account_number = ? WHERE id = ?');
+    $stmt->execute([$assigned_account_number, $new_user_id]);
+
     $_SESSION['success'] = 'Account created successfully. You can now log in.';
     redirect('../login.php');
 } catch (PDOException $e) {
     $_SESSION['errors'] = ['Something went wrong. Please try again later.'];
-    $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
+    $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
     redirect('../register.php');
 }

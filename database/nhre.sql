@@ -212,6 +212,27 @@ CREATE TABLE IF NOT EXISTS `appointments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
+-- Doctor ratings & reviews
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `doctor_ratings` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `doctor_id`   INT UNSIGNED NOT NULL,
+  `patient_id`  INT UNSIGNED NOT NULL,
+  `rating`      TINYINT UNSIGNED NOT NULL,
+  `review`      TEXT         NULL,
+  `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ratings_doctor_patient` (`doctor_id`, `patient_id`),
+  KEY `idx_ratings_doctor` (`doctor_id`),
+  KEY `idx_ratings_patient` (`patient_id`),
+  CONSTRAINT `fk_ratings_doctor`
+    FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ratings_patient`
+    FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
 -- Medical test marketplace
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `medical_tests` (
@@ -269,6 +290,35 @@ CREATE TABLE IF NOT EXISTS `pharmacy_requests` (
   KEY `idx_pharmacy_requests_user` (`user_id`),
   CONSTRAINT `fk_pharmacy_requests_user`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Vaccination centers & per-vaccine prices
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `vaccination_centers` (
+  `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`        VARCHAR(190) NOT NULL,
+  `district`    VARCHAR(100) NOT NULL,
+  `division`    VARCHAR(100) NOT NULL,
+  `center_type` VARCHAR(20)  NOT NULL DEFAULT 'Public',
+  `address`     VARCHAR(255) NULL,
+  `phone`       VARCHAR(30)  NULL,
+  `is_active`   TINYINT(1)   NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_vaccination_centers_name` (`name`),
+  KEY `idx_vaccination_centers_type` (`center_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `vaccination_center_prices` (
+  `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `center_id`    INT UNSIGNED NOT NULL,
+  `vaccine_name` VARCHAR(100) NOT NULL,
+  `price`        INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_center_vaccine` (`center_id`, `vaccine_name`),
+  KEY `idx_vaccine_prices_vaccine` (`vaccine_name`),
+  CONSTRAINT `fk_vaccination_center_prices_center`
+    FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
