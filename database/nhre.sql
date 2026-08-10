@@ -1,7 +1,7 @@
 -- =====================================================
 -- NHRE - National Healthcare Record Exchange
 -- Database schema for MySQL (run via phpMyAdmin or CLI):
---   mysql -u root -p < database/schema.sql
+--   mysql -u root -p < database/nhre.sql
 -- =====================================================
 
 CREATE DATABASE IF NOT EXISTS `nhre`
@@ -256,12 +256,66 @@ CREATE TABLE IF NOT EXISTS `medical_test_bookings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
--- Optional demo account (password: Admin123!)
---   email:    admin@nhre.gov
---   fullname: System Administrator
---   role:     Hospital Admin
--- Uncomment to seed a default admin:
+-- Pharmacy support requests
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `pharmacy_requests` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`       INT UNSIGNED NOT NULL,
+  `medicine_name` VARCHAR(190) NOT NULL,
+  `notes`         TEXT NULL,
+  `status`        VARCHAR(30)  NOT NULL DEFAULT 'Pending',
+  `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pharmacy_requests_user` (`user_id`),
+  CONSTRAINT `fk_pharmacy_requests_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Patient-controlled record access (consent) and audit
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `access_permissions` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `patient_id`     INT UNSIGNED NOT NULL,
+  `provider_id`    INT UNSIGNED NOT NULL,
+  `provider_role`  VARCHAR(50)  NOT NULL,
+  `record_types`   TEXT NOT NULL,
+  `granted_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at`     DATETIME NULL,
+  `status`         VARCHAR(20) NOT NULL DEFAULT 'Active',
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_access_permissions_patient` (`patient_id`),
+  KEY `idx_access_permissions_provider` (`provider_id`),
+  CONSTRAINT `fk_access_permissions_patient`
+    FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `access_logs` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `permission_id` INT UNSIGNED NULL,
+  `patient_id`    INT UNSIGNED NOT NULL,
+  `provider_id`   INT UNSIGNED NOT NULL,
+  `record_type`   VARCHAR(100) NOT NULL,
+  `action`        VARCHAR(50) NOT NULL DEFAULT 'view',
+  `accessed_at`   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_access_logs_patient` (`patient_id`),
+  KEY `idx_access_logs_provider` (`provider_id`),
+  CONSTRAINT `fk_access_logs_patient`
+    FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Optional demo accounts (passwords below)
+--   Hospital Admin: admin@nhre.gov / Admin123!
+--   System Admin:   sysadmin@nhre.gov / SysAdmin123!
+-- Uncomment to seed default administrators:
 -- -----------------------------------------------------
 -- INSERT INTO `users` (`fullname`, `nid`, `email`, `phone`, `password_hash`, `role`)
 -- VALUES ('System Administrator', '0000000000', 'admin@nhre.gov', '+8801000000000',
---         '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Hospital Admin');
+--         '$2y$10$/V9DSSpZKBW.wsXH3rfMueFtjlKlNX0RB4PStg8JGh9KSFG2wq1xm', 'Hospital Admin');
+--
+-- INSERT INTO `users` (`fullname`, `nid`, `email`, `phone`, `password_hash`, `role`)
+-- VALUES ('System Administrator', '0000000001', 'sysadmin@nhre.gov', '+8801000000001',
+--         '$2y$10$A7kvhcLKiCGHAp/uR9/zGeFhUp2SGZR.6skOPA/XziQ0yUe4oVi.e', 'System Admin');

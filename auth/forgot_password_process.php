@@ -45,11 +45,9 @@ try {
         $resetUrl = $scheme . $host . $basePath . '/reset_password.php?token=' . urlencode($token);
 
         $_SESSION['reset_url'] = $resetUrl;
-    }
-
-    $_SESSION['success'] = 'If an account exists for that email, a password reset link has been created. Use it to continue.';
-    if ($user) {
-        $_SESSION['success'] = 'Password reset link created successfully. Open the link below to continue.<br><a href="' . e($resetUrl) . '" target="_blank" rel="noopener">' . e($resetUrl) . '</a>';
+        $_SESSION['success'] = 'A password reset link has been created. Open the link below to continue.';
+    } else {
+        $_SESSION['success'] = 'If an account exists for that email, a password reset link has been created.';
     }
 
     redirect('../forgot_password.php');

@@ -8,198 +8,6 @@ $email = $_SESSION['email'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 $errors = session_pull('errors', []);
 $success = session_pull('success');
-
-$today = date('Y-m-d');
-$appointment_statuses = ['Pending', 'Approved', 'Completed', 'Cancelled', 'Rejected'];
-$doctor_list = [];
-$selected_doctor = null;
-$appointments = [];
-$doctor_accounts = [];
-$filter_patient = trim((string)($_GET['patient'] ?? ''));
-$filter_doctor = (int)($_GET['doctor'] ?? 0);
-$filter_status = trim((string)($_GET['status'] ?? ''));
-$filter_date = trim((string)($_GET['date'] ?? ''));
-$doctor_search = trim((string)($_GET['doctor_search'] ?? ''));
-$doctor_district = trim((string)($_GET['doctor_district'] ?? ''));
-$doctor_hospital = trim((string)($_GET['doctor_hospital'] ?? ''));
-$doctor_specialization = trim((string)($_GET['doctor_specialization'] ?? ''));
-$selected_doctor_id = (int)($_GET['doctor_id'] ?? 0);
-$show_all_doctors = isset($_GET['view_all_doctors']) && $_GET['view_all_doctors'] === '1';
-
-try {
-    ensure_doctor_profile_columns();
-    ensure_doctor_catalog_tables();
-
-    if ($role === 'Patient') {
-        $stmt = db()->prepare(
-            'SELECT u.id, u.fullname, u.district, u.hospital_name, u.specialization, u.qualification, u.experience_years, u.consultation_fee, u.rating, u.reviews_count, u.address, u.bio, u.visiting_hours, u.awards, u.is_featured,
-                    d.name AS district_name, h.name AS hospital_name_db, s.name AS specialization_name
-             FROM users u
-             LEFT JOIN districts d ON d.id = u.district_id
-             LEFT JOIN hospitals h ON h.id = u.hospital_id
-             LEFT JOIN specializations s ON s.id = u.specialization_id
-             WHERE u.role = ?
-             ORDER BY u.fullname ASC'
-        );
-        $stmt->execute(['Doctor']);
-        $doctor_rows = $stmt->fetchAll();
-
-        $doctor_list = array_map(function (array $doctor): array {
-            $doctor['district'] = $doctor['district'] ?: ($doctor['district_name'] ?? '');
-            $doctor['hospital_name'] = $doctor['hospital_name'] ?: ($doctor['hospital_name_db'] ?? '');
-            $doctor['specialization'] = $doctor['specialization'] ?: ($doctor['specialization_name'] ?? '');
-            return $doctor;
-        }, $doctor_rows);
-
-        $doctor_min_rating = (float)($_GET['doctor_min_rating'] ?? 0);
-        $doctor_min_experience = (int)($_GET['doctor_min_experience'] ?? 0);
-        $doctor_min_fee = (int)($_GET['doctor_min_fee'] ?? 0);
-        $doctor_max_fee = (int)($_GET['doctor_max_fee'] ?? 0);
-
-        if ($doctor_search !== '') {
-            $needle = '%' . $doctor_search . '%';
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($needle): bool {
-                return strpos((string)($doctor['fullname'] ?? ''), $doctor_search) !== false
-                    || strpos((string)($doctor['specialization'] ?? ''), $doctor_search) !== false
-                    || strpos((string)($doctor['hospital_name'] ?? ''), $doctor_search) !== false
-                    || strpos((string)($doctor['district'] ?? ''), $doctor_search) !== false;
-            }));
-        }
-        if ($doctor_district !== '') {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_district): bool {
-                return (string)($doctor['district'] ?? '') === $doctor_district;
-            }));
-        }
-        if ($doctor_hospital !== '') {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_hospital): bool {
-                return (string)($doctor['hospital_name'] ?? '') === $doctor_hospital;
-            }));
-        }
-        if ($doctor_specialization !== '') {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_specialization): bool {
-                return (string)($doctor['specialization'] ?? '') === $doctor_specialization;
-            }));
-        }
-        if ($doctor_min_rating > 0) {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_rating): bool {
-                return (float)($doctor['rating'] ?? 0) >= $doctor_min_rating;
-            }));
-        }
-        if ($doctor_min_experience > 0) {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_experience): bool {
-                return (int)($doctor['experience_years'] ?? 0) >= $doctor_min_experience;
-            }));
-        }
-        if ($doctor_min_fee > 0) {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_min_fee): bool {
-                return (int)($doctor['consultation_fee'] ?? 0) >= $doctor_min_fee;
-            }));
-        }
-        if ($doctor_max_fee > 0) {
-            $doctor_list = array_values(array_filter($doctor_list, function ($doctor) use ($doctor_max_fee): bool {
-                return (int)($doctor['consultation_fee'] ?? 0) <= $doctor_max_fee;
-            }));
-        }
-
-        if ($selected_doctor_id > 0) {
-            foreach ($doctor_list as $doctor) {
-                if ((int)$doctor['id'] === $selected_doctor_id) {
-                    $selected_doctor = $doctor;
-                    break;
-                }
-            }
-        }
-
-        $featured_doctors = array_values(array_filter($doctor_rows, static function ($doctor): bool {
-            return !empty($doctor['rating']) || !empty($doctor['reviews_count']) || !empty($doctor['experience_years']);
-        }));
-        usort($featured_doctors, function ($a, $b): int {
-            $ratingDiff = ((float)($b['rating'] ?? 0) - (float)($a['rating'] ?? 0));
-            if ($ratingDiff !== 0.0) {
-                return $ratingDiff > 0 ? 1 : -1;
-            }
-            $reviewDiff = ((int)($b['reviews_count'] ?? 0) - (int)($a['reviews_count'] ?? 0));
-            if ($reviewDiff !== 0) {
-                return $reviewDiff > 0 ? 1 : -1;
-            }
-            return ((int)($b['experience_years'] ?? 0) - (int)($a['experience_years'] ?? 0));
-        });
-        $featured_doctors = array_slice($featured_doctors, 0, 3);
-        foreach ($featured_doctors as &$featured) {
-            $featured['district'] = $featured['district'] ?: ($featured['district_name'] ?? '');
-            $featured['hospital_name'] = $featured['hospital_name'] ?: ($featured['hospital_name_db'] ?? '');
-            $featured['specialization'] = $featured['specialization'] ?: ($featured['specialization_name'] ?? '');
-        }
-        unset($featured);
-
-        $stmt = db()->prepare(
-            'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.reason, a.status, a.doctor_notes, u.fullname AS doctor_name
-             FROM appointments a
-             JOIN users u ON u.id = a.doctor_id
-             WHERE a.patient_id = ?
-             ORDER BY a.appointment_date ASC, a.appointment_time ASC'
-        );
-        $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
-        $appointments = $stmt->fetchAll();
-
-        $doctor_accounts_stmt = db()->prepare('SELECT id, fullname, email FROM users WHERE role = ? ORDER BY id ASC');
-        $doctor_accounts_stmt->execute(['Doctor']);
-        $doctor_accounts = $doctor_accounts_stmt->fetchAll();
-    } elseif ($role === 'Doctor') {
-        $stmt = db()->prepare(
-            'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.reason, a.status, a.doctor_notes, u.fullname AS patient_name
-             FROM appointments a
-             JOIN users u ON u.id = a.patient_id
-             WHERE a.doctor_id = ?
-             ORDER BY a.appointment_date ASC, a.appointment_time ASC'
-        );
-        $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
-        $appointments = $stmt->fetchAll();
-    } elseif ($role === 'Hospital Admin') {
-        $stmt = db()->prepare('SELECT id, fullname FROM users WHERE role = ? ORDER BY fullname ASC');
-        $stmt->execute(['Doctor']);
-        $doctor_list = $stmt->fetchAll();
-
-        $sql = 
-            'SELECT a.appointment_id, a.appointment_date, a.appointment_time, a.reason, a.status, a.doctor_notes, pd.fullname AS patient_name, dd.fullname AS doctor_name
-             FROM appointments a
-             JOIN users pd ON pd.id = a.patient_id
-             JOIN users dd ON dd.id = a.doctor_id';
-        $conditions = [];
-        $params = [];
-
-        if ($filter_patient !== '') {
-            $conditions[] = 'pd.fullname LIKE ?';
-            $params[] = '%' . $filter_patient . '%';
-        }
-
-        if ($filter_doctor > 0) {
-            $conditions[] = 'dd.id = ?';
-            $params[] = $filter_doctor;
-        }
-
-        if (in_array($filter_status, $appointment_statuses, true)) {
-            $conditions[] = 'a.status = ?';
-            $params[] = $filter_status;
-        }
-
-        if ($filter_date !== '' && DateTimeImmutable::createFromFormat('Y-m-d', $filter_date) !== false) {
-            $conditions[] = 'a.appointment_date = ?';
-            $params[] = $filter_date;
-        }
-
-        if ($conditions) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        $sql .= ' ORDER BY a.appointment_date ASC, a.appointment_time ASC';
-        $stmt = db()->prepare($sql);
-        $stmt->execute($params);
-        $appointments = $stmt->fetchAll();
-    }
-} catch (PDOException $e) {
-    $errors[] = 'Unable to load appointment data. Please try again later.';
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -211,7 +19,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 <script>
   (function () {
     try {
@@ -237,6 +45,7 @@ try {
 </script>
 </head>
 <body class="dashboard-body">
+  <?php require __DIR__ . '/includes/sidebar.php'; ?>
   <nav class="dashboard-nav">
     <div class="container d-flex align-items-center justify-content-between gap-3">
       <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
@@ -400,6 +209,6 @@ try {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-2"></script>
+  <script src="assets/js/app.js?v=20260807-3"></script>
 </body>
 </html>

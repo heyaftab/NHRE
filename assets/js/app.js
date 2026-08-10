@@ -1,4 +1,31 @@
 (() => {
+  /* ---------- Authenticated sidebar ---------- */
+  const sidebar = document.getElementById('nhreSidebar');
+  if (sidebar) {
+    const body = document.body;
+    const toggle = document.querySelector('.sidebar-toggle');
+    const collapse = document.querySelector('.sidebar-collapse');
+    const backdrop = document.querySelector('.sidebar-backdrop');
+    body.classList.add('has-sidebar');
+
+    const setMobileOpen = (open) => {
+      body.classList.toggle('sidebar-open', open);
+      if (backdrop) backdrop.hidden = !open;
+      if (toggle) toggle.setAttribute('aria-expanded', String(open));
+    };
+    const closeMobile = () => setMobileOpen(false);
+
+    if (toggle) toggle.addEventListener('click', () => setMobileOpen(!body.classList.contains('sidebar-open')));
+    if (backdrop) backdrop.addEventListener('click', closeMobile);
+    if (collapse) collapse.addEventListener('click', () => {
+      body.classList.toggle('sidebar-collapsed');
+      try { localStorage.setItem('nhre-sidebar-collapsed', body.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (e) {}
+    });
+    try { if (localStorage.getItem('nhre-sidebar-collapsed') === '1' && window.innerWidth > 991) body.classList.add('sidebar-collapsed'); } catch (e) {}
+    sidebar.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMobile));
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeMobile(); });
+  }
+
   'use strict';
 
   /* ---------- Light/dark theme ---------- */

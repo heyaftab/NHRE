@@ -5,6 +5,7 @@ redirect_if_authenticated();
 $errors = session_pull('errors', []);
 $old = session_pull('old', []);
 $success = session_pull('success');
+$reset_url = session_pull('reset_url');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -16,7 +17,7 @@ $success = session_pull('success');
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 <script>
   (function () {
     try {
@@ -50,7 +51,12 @@ $success = session_pull('success');
               <?php if ($success): ?>
                 <div class="alert alert-success auth-alert" role="alert">
                   <i class="fa-solid fa-circle-check"></i>
-                  <span><?= e($success) ?></span>
+                  <div>
+                    <div><?= e($success) ?></div>
+                    <?php if ($reset_url): ?>
+                      <a href="<?= e($reset_url) ?>" class="alert-link"><?= e($reset_url) ?></a>
+                    <?php endif; ?>
+                  </div>
                 </div>
               <?php endif; ?>
 
@@ -88,6 +94,6 @@ $success = session_pull('success');
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-2"></script>
+  <script src="assets/js/app.js?v=20260807-3"></script>
 </body>
 </html>

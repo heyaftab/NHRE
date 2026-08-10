@@ -4,6 +4,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/auth_check.php';
 require_auth();
 
+if (($_SESSION['role'] ?? '') !== 'Hospital Admin') {
+    $_SESSION['errors'] = ['You do not have permission to update donor eligibility.'];
+    redirect('../blood_donation.php');
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('../blood_donation.php');
 }

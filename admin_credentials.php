@@ -11,7 +11,7 @@ $errors = session_pull('errors', []);
 $success = session_pull('success');
 
 try {
-    $stmt = db()->prepare('SELECT id, fullname, email, role FROM users WHERE role IN (?, ?, ?, ?) ORDER BY role, fullname');
+    $stmt = db()->prepare('SELECT id, fullname, email, role, password_hash FROM users WHERE role IN (?, ?, ?, ?) ORDER BY role, fullname');
     $stmt->execute(['Patient', 'Doctor', 'Pharmacist', 'Lab Technician']);
     $accounts = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -29,9 +29,10 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 </head>
 <body class="dashboard-body">
+  <?php require __DIR__ . '/includes/sidebar.php'; ?>
   <nav class="dashboard-nav">
     <div class="container d-flex align-items-center justify-content-between gap-3">
       <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
@@ -76,7 +77,7 @@ try {
           <article class="dashboard-card">
             <div class="dashboard-card-icon"><i class="fa-solid fa-key"></i></div>
             <h2>Account access list</h2>
-            <p class="text-muted">The table below shows the currently seeded login credentials for support and testing purposes.</p>
+            <p class="text-muted">Seeded accounts show their default login password; accounts with a custom password are masked.</p>
             <div class="table-responsive mt-3">
               <table class="table table-hover align-middle">
                 <thead>
@@ -103,8 +104,15 @@ try {
                               'Lab Technician' => 'Lab123!',
                               default => 'Password123!'
                             };
+                            $matchesDefault = !empty($account['password_hash'])
+                              && password_verify($defaultPassword, $account['password_hash']);
                           ?>
-                          <?= e($defaultPassword) ?>
+                          <?php if ($matchesDefault): ?>
+                            <?= e($defaultPassword) ?>
+                            <span class="badge bg-success-subtle text-success-emphasis">seed</span>
+                          <?php else: ?>
+                            <span class="text-muted">custom (not shown)</span>
+                          <?php endif; ?>
                         </td>
                       </tr>
                     <?php endforeach; ?>

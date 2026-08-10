@@ -55,6 +55,9 @@ try {
 
     login_user($user, $remember);
 
+    $stmt = db()->prepare('DELETE FROM login_attempts WHERE email = ?');
+    $stmt->execute([$email]);
+
     redirect('../dashboard.php');
 } catch (PDOException $e) {
     $_SESSION['errors'] = ['Something went wrong. Please try again later.'];

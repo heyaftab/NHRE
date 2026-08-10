@@ -43,7 +43,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 <script>
   (function () {
     try {
@@ -58,6 +58,7 @@ try {
 </script>
 </head>
 <body class="dashboard-body">
+  <?php require __DIR__ . '/includes/sidebar.php'; ?>
   <nav class="dashboard-nav">
     <div class="container d-flex align-items-center justify-content-between gap-3">
       <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
@@ -195,21 +196,25 @@ try {
                   <?php endif; ?>
                 </div>
               <?php endif; ?>
-              <form action="auth/hospital_blood_update_process.php" method="POST">
-                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-                <div class="mb-3">
-                  <label class="form-label">Donor ID</label>
-                  <input type="number" class="form-control" name="donor_id" placeholder="Enter donor ID" required>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Update</label>
-                  <select class="form-select" name="action" required>
-                    <option value="mark_donated">Mark as donated (block for 4 months)</option>
-                    <option value="mark_available">Mark as available again</option>
-                  </select>
-                </div>
-                <button type="submit" class="btn btn-solid-nhre w-100">Update Donor</button>
-              </form>
+              <?php if ($role === 'Hospital Admin'): ?>
+                <form action="auth/hospital_blood_update_process.php" method="POST">
+                  <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                  <div class="mb-3">
+                    <label class="form-label">Donor ID</label>
+                    <input type="number" class="form-control" name="donor_id" placeholder="Enter donor ID" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Update</label>
+                    <select class="form-select" name="action" required>
+                      <option value="mark_donated">Mark as donated (block for 4 months)</option>
+                      <option value="mark_available">Mark as available again</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-solid-nhre w-100">Update Donor</button>
+                </form>
+              <?php else: ?>
+                <p class="text-muted mb-0">Eligibility updates are managed by hospital administrators.</p>
+              <?php endif; ?>
             </div>
           </article>
         </div>
@@ -293,6 +298,6 @@ try {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-2"></script>
+  <script src="assets/js/app.js?v=20260807-3"></script>
 </body>
 </html>

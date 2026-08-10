@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/auth/auth_check.php';
+require_auth();
+
+if (($_SESSION['role'] ?? '') !== 'Hospital Admin') {
+    redirect('dashboard.php');
+}
 
 $results = [];
 
@@ -30,7 +35,7 @@ $results['Session started'] = session_status() === PHP_SESSION_ACTIVE ? 'Yes' : 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NHRE Setup Test</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 <script>
   (function () {
     try {
@@ -44,10 +49,11 @@ $results['Session started'] = session_status() === PHP_SESSION_ACTIVE ? 'Yes' : 
   })();
 </script>
 </head>
-<body class="auth-body">
-  <main class="auth-page">
+<body class="dashboard-body">
+  <?php require __DIR__ . '/includes/sidebar.php'; ?>
+  <main class="dashboard-main">
     <section class="container" style="max-width: 680px;">
-      <div class="glass-card p-4">
+      <div class="glass-card p-4 mt-4">
         <h2 class="mb-4">NHRE Setup Test</h2>
         <table class="table">
           <tbody>
@@ -59,9 +65,10 @@ $results['Session started'] = session_status() === PHP_SESSION_ACTIVE ? 'Yes' : 
             <?php endforeach; ?>
           </tbody>
         </table>
-        <a href="index.php" class="btn btn-solid-nhre">Back to Home</a>
+        <a href="dashboard.php" class="btn btn-solid-nhre">Back to Dashboard</a>
       </div>
     </section>
   </main>
+  <script src="assets/js/app.js?v=20260807-3"></script>
 </body>
 </html>

@@ -1,10 +1,33 @@
 <?php
 require_once __DIR__ . '/auth/auth_check.php';
-require_auth();
+require_role(['Patient', 'Pharmacist']);
 
 $fullname = $_SESSION['fullname'] ?? 'NHRE User';
 $email = $_SESSION['email'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
+
+$errors = session_pull('errors', []);
+$old = session_pull('old', []);
+$success = session_pull('success');
+
+ensure_pharmacy_requests_table_exists();
+
+$recent_requests = [];
+if (isset($_SESSION['user_id'])) {
+    try {
+        $stmt = db()->prepare(
+            'SELECT medicine_name, notes, status, created_at
+             FROM pharmacy_requests
+             WHERE user_id = ?
+             ORDER BY created_at DESC
+             LIMIT 10'
+        );
+        $stmt->execute([(int)$_SESSION['user_id']]);
+        $recent_requests = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        $recent_requests = [];
+    }
+}
 
 $medicines = [
     ['name' => 'Paracetamol 500mg', 'category' => 'Pain Relief', 'stock' => 'In stock', 'price' => '৳ 4', 'description' => 'Common medicine for fever, headache, and mild pain relief.'],
@@ -76,7 +99,7 @@ $medicines = [
   <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-4">
 <script>
   (function () {
     try {
@@ -91,6 +114,7 @@ $medicines = [
 </script>
 </head>
 <body class="dashboard-body">
+  <?php require __DIR__ . '/includes/sidebar.php'; ?>
   <nav class="dashboard-nav">
     <div class="container d-flex align-items-center justify-content-between gap-3">
       <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
@@ -148,19 +172,49 @@ $medicines = [
             <div class="dashboard-card-icon"><i class="fa-solid fa-file-medical"></i></div>
             <h2>Request Pharmacy Support</h2>
             <p>Need urgent medication assistance? Submit a request and our team will follow up.</p>
-            <form class="mt-3">
+
+            <?php if ($success): ?>
+              <div class="alert alert-success" role="alert"><?= e($success) ?></div>
+            <?php endif; ?>
+
+            <?php if ($errors): ?>
+              <div class="alert alert-danger" role="alert">
+                <?php foreach ($errors as $message): ?>
+                  <div><?= e($message) ?></div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+
+            <form class="mt-3" action="auth/pharmacy_request_process.php" method="POST">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
               <div class="mb-3">
-                <label class="form-label">Medicine Name</label>
-                <input type="text" class="form-control" placeholder="e.g. Paracetamol">
+                <label class="form-label" for="medicine_name">Medicine Name</label>
+                <input type="text" class="form-control" id="medicine_name" name="medicine_name" placeholder="e.g. Paracetamol" value="<?= e($old['medicine_name'] ?? '') ?>" required>
               </div>
               <div class="mb-3">
-                <label class="form-label">Prescription Notes</label>
-                <textarea class="form-control" rows="4" placeholder="Add dosage or urgency details"></textarea>
+                <label class="form-label" for="notes">Prescription Notes</label>
+                <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Add dosage or urgency details"><?= e($old['notes'] ?? '') ?></textarea>
               </div>
               <button type="submit" class="btn btn-solid-nhre w-100">
                 <i class="fa-solid fa-paper-plane"></i> Submit Request
               </button>
             </form>
+
+            <?php if ($recent_requests): ?>
+              <hr class="my-4">
+              <h2 class="fs-6">Recent Requests</h2>
+              <ul class="list-group list-group-flush mt-3">
+                <?php foreach ($recent_requests as $request): ?>
+                  <li class="list-group-item px-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <strong><?= e($request['medicine_name']) ?></strong>
+                      <span class="badge bg-secondary text-white text-capitalize"><?= e($request['status']) ?></span>
+                    </div>
+                    <small class="text-muted"><?= e(date('j M Y, g:i a', strtotime($request['created_at']))) ?></small>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
           </article>
         </div>
       </div>
@@ -168,6 +222,6 @@ $medicines = [
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-2"></script>
+  <script src="assets/js/app.js?v=20260807-3"></script>
 </body>
 </html>

@@ -6,14 +6,17 @@ NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landin
 
 ## Features
 
-- Registration for Patient, Doctor, Pharmacist, Lab Technician, and Hospital Admin roles
+- Registration for Patient, Doctor, Pharmacist, and Lab Technician roles (Hospital Admin and System Admin are provisioned by administrators and cannot be self-registered)
 - Login sessions, CSRF protection, password hashing, failed-login throttling, and optional remember-me tokens
 - Profile management with optional profile-photo uploads (maximum 2 MB)
 - In-app notifications with unread counts and a mark-all-read action
+- Shared responsive, collapsible sidebar navigation with role-specific links and unread-notification access
+- Patient-controlled data access: grant/revoke record access to doctors and hospitals, pending access requests, and an access history audit log
+- Doctor patient search (by name, NID, phone, email) with consent-gated access to authorized records
 - Appointment scheduling: patients can find doctors and book or cancel appointments; doctors can manage assigned appointments; Hospital Admins can oversee them
 - Medical-test marketplace with filtering, bookings, lab-technician status updates, and result-file uploads
 - Vaccination schedule interface and patient-specific doctor-report viewing
-- Pharmacy information and medicine catalogue interface
+- Pharmacy medicine catalogue and pharmacy-support request workflow
 - Blood donor registration, blood requests, donor directory, and donor eligibility tracking
 - Password reset links generated in the application for local development
 - Responsive Bootstrap interface with custom CSS and JavaScript
@@ -38,6 +41,8 @@ NHRE/
 ├── auth/                         # Form handlers and authenticated JSON endpoint
 ├── config/
 │   └── database.php              # Database, session, and login settings
+├── includes/
+│   └── sidebar.php               # Shared authenticated role-based navigation
 ├── database/
 │   └── nhre.sql                  # Database schema and optional demo user
 ├── uploads/profile_pics/         # Created automatically after a photo upload
@@ -50,8 +55,14 @@ NHRE/
 ├── medical_tests.php             # Medical-test catalogue and bookings
 ├── vaccination.php               # Vaccination/doctor reports
 ├── pharmacy.php                  # Pharmacy module
+├── data_access.php               # Patient-controlled record access and history
+├── patient_search.php            # Doctor/Lab/Pharmacy patient lookup
+├── authorized_records.php        # Consent-gated patient record view
+├── access_requests.php           # Doctor access-request tracking
 ├── blood_donation.php            # Donor and blood-request workflows
 ├── admin_credentials.php         # Hospital Admin account credential view
+├── coming_soon.php               # Authorized placeholders for planned workspaces
+├── help_support.php               # Authenticated help and privacy guidance
 └── test.php                      # Local setup diagnostic
 ```
 
@@ -98,10 +109,10 @@ Then visit [http://localhost:8000](http://localhost:8000).
 
 The normal route is to create an account at `register.php`. Passwords must contain at least eight characters, including uppercase, lowercase, numeric, and symbol characters.
 
-The SQL file also contains a commented demo Hospital Admin insert. Uncomment it before importing (or run it separately) to enable:
+The SQL file also contains commented demo Hospital Admin and System Admin inserts. Uncomment them before importing (or run them separately) to enable:
 
-- Email: `admin@nhre.gov`
-- Password: `Admin123!`
+- Hospital Admin: `admin@nhre.gov` / `Admin123!`
+- System Admin: `sysadmin@nhre.gov` / `SysAdmin123!`
 
 Do not retain demo credentials in any deployed environment.
 
@@ -125,10 +136,12 @@ This prototype does not send email. After a valid email is submitted at `forgot_
 
 ## Data and role notes
 
-- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`.
-- Registration supports Patient, Doctor, Pharmacist, Lab Technician, and Hospital Admin roles. The appointment and medical-test workflows expose additional role-specific actions; other authenticated pages remain shared across roles.
+- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`. Patient data-access tables (`access_permissions`, `access_logs`) and `pharmacy_requests` are also created.
+- The application recognizes six roles: Patient, Doctor, Pharmacist, Lab Technician, Hospital Admin, and System Admin. Self-registration supports Patient, Doctor, Pharmacist, and Lab Technician only; Hospital Admin and System Admin accounts are provisioned by an administrator (seed inserts in `database/nhre.sql`).
+- The authenticated sidebar is role-aware and only links to a role's existing workspaces or clearly labeled planned workspaces. Planned workspaces enforce their allowed roles on the server and do not expose patient records.
+- Patient data access: patients grant or revoke record access (Medical History, Lab Reports, Prescriptions, Vaccinations, Allergies, Medical Documents) to individual doctors or to hospitals. Doctors can request access, which appears as a pending request for the patient to approve or reject. `authorized_records.php` enforces an active, unexpired permission server-side and writes to the access log.
 - Hospital-only donor controls and appointment administration are shown conditionally in the interface; server-side role authorization should be strengthened before deployment.
-- The pharmacy catalogue is currently interface/demo data rather than a database-backed prescription workflow.
+- The pharmacy catalogue is interface/demo data, but the pharmacy support-request form writes real rows to `pharmacy_requests`.
 - Vaccination schedules are currently static reference content. Doctor reports and notifications require records to be inserted into their respective database tables; there is no administrative creation interface for doctor reports yet.
 - Medical-test catalogue entries are seeded with demo data if the catalogue is empty. Lab result files are stored under `uploads/test_results/` and should be treated as untrusted uploads.
 
@@ -150,7 +163,7 @@ Lint every PHP file:
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-For a manual smoke test, import the schema, register a user, log in, edit the profile, book and manage an appointment using the relevant roles, create a medical-test booking, register as a donor, submit a blood request, and test logout and password reset.
+For a manual smoke test, import the schema, register a user, log in, edit the profile, book and manage an appointment using the relevant roles, create a medical-test booking, register as a donor, submit a blood request, and test logout and password reset. For the data-access flow: log in as a patient, grant a doctor access and confirm the permission appears; log in as that doctor, search for the patient, open the authorized records, and confirm the access log records the view.
 
 ## License
 

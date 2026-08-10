@@ -18,8 +18,37 @@ $bloodGroup = trim((string)($_POST['blood_group'] ?? ''));
 $district = trim((string)($_POST['district'] ?? ''));
 $notes = trim((string)($_POST['notes'] ?? ''));
 
-if ($reqName === '' || $phone === '' || $bloodGroup === '' || $district === '') {
-    $_SESSION['errors'] = ['Please fill all required request fields.'];
+$allowedBloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
+$errors = [];
+
+if ($reqName === '') {
+    $errors[] = 'Please enter the requester name.';
+} elseif (mb_strlen($reqName) > 150) {
+    $errors[] = 'Requester name must be 150 characters or fewer.';
+}
+
+if ($phone === '') {
+    $errors[] = 'Please enter a phone number.';
+} elseif (!preg_match('/^\+?[0-9][0-9\s().\-]{7,19}$/', $phone)) {
+    $errors[] = 'Please enter a valid phone number.';
+}
+
+if (!in_array($bloodGroup, $allowedBloodGroups, true)) {
+    $errors[] = 'Please choose a valid blood group.';
+}
+
+if ($district === '') {
+    $errors[] = 'Please enter the district.';
+} elseif (mb_strlen($district) > 100) {
+    $errors[] = 'District must be 100 characters or fewer.';
+}
+
+if ($notes !== '' && mb_strlen($notes) > 1000) {
+    $errors[] = 'Notes must be 1000 characters or fewer.';
+}
+
+if ($errors) {
+    $_SESSION['errors'] = $errors;
     redirect('../blood_donation.php');
 }
 

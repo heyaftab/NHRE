@@ -63,8 +63,8 @@ if ($password !== $confirm) {
     $errors[] = 'Passwords do not match.';
 }
 
-if (!in_array($role, valid_roles(), true)) {
-    $errors[] = 'Please select a valid role.';
+if (!in_array($role, self_service_roles(), true)) {
+    $errors[] = 'Please select a valid role. Administrative roles cannot be self-registered.';
 }
 
 if ($errors) {
@@ -74,11 +74,11 @@ if ($errors) {
 }
 
 try {
-    $stmt = db()->prepare('SELECT id FROM users WHERE email = ? OR nid = ? LIMIT 1');
-    $stmt->execute([$email, $nid]);
+    $stmt = db()->prepare('SELECT id FROM users WHERE email = ? OR nid = ? OR phone = ? LIMIT 1');
+    $stmt->execute([$email, $nid, $phone]);
 
     if ($stmt->fetch()) {
-        $_SESSION['errors'] = ['An account with that email or National ID already exists.'];
+        $_SESSION['errors'] = ['An account with that email, National ID, or phone number already exists.'];
         $_SESSION['old'] = compact('fullname', 'nid', 'email', 'phone', 'role', 'account_number', 'date_of_birth', 'nationality', 'gender', 'address', 'emergency_contact', 'blood_group', 'marital_status', 'occupation');
         redirect('../register.php');
     }

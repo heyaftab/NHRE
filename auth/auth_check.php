@@ -27,6 +27,16 @@ function e(mixed $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+/** Whole years elapsed since a Y-m-d date of birth. */
+function age_from_dob(string $dateOfBirth): int
+{
+    $dob = DateTimeImmutable::createFromFormat('Y-m-d', $dateOfBirth);
+    if ($dob === false) {
+        return 0;
+    }
+    return $dob->diff(new DateTimeImmutable('today'))->y;
+}
+
 function session_pull(string $key, mixed $default = null): mixed
 {
     $value = $_SESSION[$key] ?? $default;
@@ -36,7 +46,13 @@ function session_pull(string $key, mixed $default = null): mixed
 
 function valid_roles(): array
 {
-    return ['Patient', 'Doctor', 'Pharmacist', 'Lab Technician', 'Hospital Admin'];
+    return ['Patient', 'Doctor', 'Pharmacist', 'Lab Technician', 'Hospital Admin', 'System Admin'];
+}
+
+/** Roles a visitor may self-select at registration. Administrative roles are provisioned only. */
+function self_service_roles(): array
+{
+    return ['Patient', 'Doctor', 'Pharmacist', 'Lab Technician'];
 }
 
 function client_ip(): string
@@ -69,6 +85,16 @@ function require_auth(): void
 {
     if (empty($_SESSION['user_id'])) {
         redirect('login.php');
+    }
+}
+
+/** @param list<string> $roles */
+function require_role(array $roles): void
+{
+    require_auth();
+    if (!in_array((string)($_SESSION['role'] ?? ''), $roles, true)) {
+        $_SESSION['errors'] = ['You do not have permission to access that workspace.'];
+        redirect('dashboard.php');
     }
 }
 
@@ -530,7 +556,10 @@ function get_doctor_time_slots(int $doctor_id, ?string $appointment_date = null,
             'SELECT appointment_time FROM appointments WHERE doctor_id = ? AND appointment_date = ?'
         );
         $stmt->execute([$doctor_id, $appointment_date]);
-        $booked = array_column($stmt->fetchAll(), 'appointment_time');
+        $booked = array_map(
+            static fn ($time): string => substr((string)$time, 0, 5),
+            array_column($stmt->fetchAll(), 'appointment_time')
+        );
         $slots = array_values(array_filter($slots, static function (string $slot) use ($booked): bool {
             return !in_array($slot, $booked, true);
         }));
@@ -604,6 +633,121 @@ function ensure_medical_test_tables_exists(): void
             $stmt->execute($row);
         }
     }
+}
+
+function ensure_pharmacy_requests_table_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `pharmacy_requests` (
+          `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `user_id`       INT UNSIGNED NOT NULL,
+          `medicine_name` VARCHAR(190) NOT NULL,
+          `notes`         TEXT NULL,
+          `status`        VARCHAR(30)  NOT NULL DEFAULT \'Pending\',
+          `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_pharmacy_requests_user` (`user_id`),
+          CONSTRAINT `fk_pharmacy_requests_user`
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+}
+
+function ensure_access_tables_exists(): void
+{
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `access_permissions` (
+          `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `patient_id`     INT UNSIGNED NOT NULL,
+          `provider_id`    INT UNSIGNED NOT NULL,
+          `provider_role`  VARCHAR(50)  NOT NULL,
+          `record_types`   TEXT NOT NULL,
+          `granted_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `expires_at`     DATETIME NULL,
+          `status`         VARCHAR(20) NOT NULL DEFAULT \'Active\',
+          `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_access_permissions_patient` (`patient_id`),
+          KEY `idx_access_permissions_provider` (`provider_id`),
+          CONSTRAINT `fk_access_permissions_patient`
+            FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `access_logs` (
+          `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `permission_id` INT UNSIGNED NULL,
+          `patient_id`    INT UNSIGNED NOT NULL,
+          `provider_id`   INT UNSIGNED NOT NULL,
+          `record_type`   VARCHAR(100) NOT NULL,
+          `action`        VARCHAR(50) NOT NULL DEFAULT \'view\',
+          `accessed_at`   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_access_logs_patient` (`patient_id`),
+          KEY `idx_access_logs_provider` (`provider_id`),
+          CONSTRAINT `fk_access_logs_patient`
+            FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+}
+
+/** Record types a patient may grant to a provider. */
+function access_record_types(): array
+{
+    return ['Medical History', 'Lab Reports', 'Prescriptions', 'Vaccinations', 'Allergies', 'Medical Documents'];
+}
+
+/**
+ * Return the active access permission for a patient/provider pair, or null.
+ * @return array{id:int,record_types:string,expires_at:string}|null
+ */
+function active_access(int $patient_id, int $provider_id): ?array
+{
+    try {
+        $stmt = db()->prepare(
+            'SELECT id, record_types, expires_at FROM access_permissions
+             WHERE patient_id = ? AND provider_id = ? AND status = \'Active\' AND expires_at > NOW()
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute([$patient_id, $provider_id]);
+        $row = $stmt->fetch();
+        return $row ? ['id' => (int)$row['id'], 'record_types' => (string)$row['record_types'], 'expires_at' => (string)$row['expires_at']] : null;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/** Record a provider's read access in the audit log and notify the patient. */
+function log_record_access(?int $permission_id, int $patient_id, int $provider_id, string $record_type, bool $notify = true): void
+{
+    try {
+        $stmt = db()->prepare(
+            'INSERT INTO access_logs (permission_id, patient_id, provider_id, record_type)
+             VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$permission_id, $patient_id, $provider_id, $record_type]);
+    } catch (PDOException $e) {
+    }
+
+    if (!$notify) {
+        return;
+    }
+
+    try {
+        $stmt = db()->prepare('SELECT fullname FROM users WHERE id = ?');
+        $stmt->execute([$provider_id]);
+        $provider_name = (string)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        $provider_name = 'A healthcare provider';
+    }
+
+    create_notification(
+        $patient_id,
+        'Medical record accessed',
+        $provider_name . ' viewed your authorized ' . $record_type . ' records.',
+        'access'
+    );
 }
 
 remember_me_login();
