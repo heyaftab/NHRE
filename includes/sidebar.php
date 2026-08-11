@@ -23,7 +23,7 @@ if ($sidebarRole === 'Patient') {
     $sidebarLinks = array_merge($sidebarLinks, [
         ['coming_soon.php?feature=medical-records', 'fa-notes-medical', 'Medical Records', true],
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
-        ['coming_soon.php?feature=prescriptions', 'fa-prescription', 'Prescriptions', true],
+        ['prescriptions.php', 'fa-prescription', 'Prescriptions'],
         ['pharmacy.php', 'fa-pills', 'Pharmacy'],
         ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
         ['vaccination.php', 'fa-syringe', 'Vaccinations'],
@@ -38,7 +38,7 @@ if ($sidebarRole === 'Patient') {
         ['patient_search.php', 'fa-magnifying-glass', 'Patient Search'],
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
         ['coming_soon.php?feature=medical-records', 'fa-notes-medical', 'Medical Records', true],
-        ['coming_soon.php?feature=prescriptions', 'fa-pills', 'Prescriptions', true],
+        ['prescriptions.php', 'fa-pills', 'Prescriptions'],
         ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
         ['coming_soon.php?feature=medical-documents', 'fa-folder-open', 'Medical Documents', true],
         ['access_requests.php', 'fa-shield-halved', 'Access Requests'],
@@ -53,11 +53,11 @@ if ($sidebarRole === 'Patient') {
 } elseif ($sidebarRole === 'Pharmacist') {
     $sidebarLinks = array_merge($sidebarLinks, [
         ['pharmacy.php', 'fa-pills', 'Pharmacy'],
-        ['coming_soon.php?feature=prescriptions', 'fa-prescription', 'Prescriptions', true],
-        ['coming_soon.php?feature=inventory', 'fa-boxes-stacked', 'Medicine Inventory', true],
-        ['coming_soon.php?feature=stock-management', 'fa-boxes-packing', 'Stock Management', true],
+        ['prescriptions.php', 'fa-prescription', 'Prescriptions'],
+        ['inventory.php', 'fa-boxes-stacked', 'Medicine Inventory'],
+        ['stock.php', 'fa-boxes-packing', 'Stock Management'],
         ['patient_search.php', 'fa-magnifying-glass', 'Patient Search'],
-        ['coming_soon.php?feature=dispensing-history', 'fa-clock-rotate-left', 'Dispensing History', true],
+        ['dispensing_history.php', 'fa-clock-rotate-left', 'Dispensing History'],
     ]);
 } elseif ($sidebarRole === 'Hospital Admin') {
     $sidebarLinks = array_merge($sidebarLinks, [

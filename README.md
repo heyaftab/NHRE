@@ -9,7 +9,7 @@ NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landin
 - Registration for Patient, Doctor, Pharmacist, and Lab Technician roles (Hospital Admin and System Admin are provisioned by administrators and cannot be self-registered)
 - Login sessions, CSRF protection, password hashing, failed-login throttling, and optional remember-me tokens
 - Profile management with optional profile-photo uploads (maximum 2 MB) and a choice of saved cartoon avatars
-- In-app notifications with unread counts and a mark-all-read action
+- In-app notifications with an unread badge; opening the notification dropdown marks them as read, and a mark-all-read action is also available
 - Shared responsive, collapsible sidebar navigation with role-specific links and unread-notification access
 - Patient-controlled data access: grant/revoke record access to doctors and hospitals, pending access requests, and an access history audit log
 - Doctor patient search (by name, NID, phone, email) with consent-gated access to authorized records

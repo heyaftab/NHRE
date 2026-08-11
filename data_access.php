@@ -112,10 +112,10 @@ try {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Data Access - NHRE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
 <script>
   (function () {
     try {
@@ -388,7 +388,7 @@ try {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-5"></script>
+  <script src="assets/js/app.js?v=20260811-8"></script>
   <script>
     (function () {
       const type = document.getElementById('providerType');

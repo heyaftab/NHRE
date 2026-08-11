@@ -16,10 +16,10 @@ $success = session_pull('success');
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - NHRE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-13">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
 <script>
   (function () {
     try {
@@ -46,34 +46,8 @@ $success = session_pull('success');
 </head>
 <body class="dashboard-body">
   <?php require __DIR__ . '/includes/sidebar.php'; ?>
-  <nav class="dashboard-nav">
-    <div class="container d-flex align-items-center justify-content-between gap-3">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
-        <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
-      </a>
-      <div class="d-flex align-items-center gap-2">
-        <div class="notification-wrap" id="notificationWrap">
-          <button type="button" class="notification-icon-button ripple" id="notificationBell" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
-            <i class="fa-solid fa-bell"></i>
-            <span class="notification-badge" id="notificationBadge" hidden></span>
-          </button>
-          <div class="notification-overlay" id="notificationOverlay" hidden>
-            <input type="hidden" id="notificationCsrf" value="<?= csrf_token() ?>">
-            <div class="notification-overlay-head">
-              <strong>Notifications</strong>
-              <button type="button" class="notification-mark-read" id="markAllRead">Mark all read</button>
-            </div>
-            <div class="notification-overlay-list" id="notificationList"></div>
-            <a href="notifications.php" class="notification-overlay-footer">View all notifications</a>
-          </div>
-        </div>
-        <a href="logout.php" class="btn btn-dashboard-logout ripple">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>Logout</span>
-        </a>
-      </div>
-    </div>
-  </nav>
+  <?php require __DIR__ . '/includes/topnav.php'; ?>
+
 
   <main class="dashboard-main">
     <section class="container">
@@ -139,7 +113,7 @@ $success = session_pull('success');
           <article class="dashboard-card">
             <div class="dashboard-card-icon"><i class="fa-solid fa-pills"></i></div>
             <h2>Pharmacy</h2>
-            <p>Browse medicines, check availability, and request pharmacy support.</p>
+            <p>View prescriptions, manage medicine inventory, and track dispensing.</p>
             <a href="pharmacy.php" class="dashboard-card-link">Open Pharmacy</a>
           </article>
         </div>
@@ -209,6 +183,6 @@ $success = session_pull('success');
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-5"></script>
+  <script src="assets/js/app.js?v=20260811-8"></script>
 </body>
 </html>

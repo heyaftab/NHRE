@@ -106,6 +106,90 @@
     onScroll();
   }
 
+  /* ---------- Landing nav scrollspy ---------- */
+  const spyLinks = document.querySelectorAll('.nav-link-nhre[href^="#"]');
+  if (spyLinks.length) {
+    const spySections = Array.from(spyLinks)
+      .map((a) => document.querySelector(a.getAttribute('href')))
+      .filter(Boolean);
+    const spy = () => {
+      const pos = window.scrollY + 140;
+      let current = spySections[0];
+      spySections.forEach((sec) => { if (sec.offsetTop <= pos) current = sec; });
+      if (!current) return;
+      spyLinks.forEach((a) =>
+        a.classList.toggle('is-active', a.getAttribute('href') === '#' + current.id)
+      );
+    };
+    window.addEventListener('scroll', spy, { passive: true });
+    spy();
+  }
+
+  /* ---------- Hero particle network ---------- */
+  const particlesCanvas = document.getElementById('nhre-particles');
+  if (particlesCanvas && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const ctx = particlesCanvas.getContext('2d');
+    let particles = [];
+    let pRaf = 0;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const pSize = () => {
+      const rect = particlesCanvas.parentElement.getBoundingClientRect();
+      particlesCanvas.width = Math.floor(rect.width * DPR);
+      particlesCanvas.height = Math.floor(rect.height * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    };
+    const spawn = () => {
+      const w = particlesCanvas.width / DPR;
+      const h = particlesCanvas.height / DPR;
+      particles = Array.from({ length: Math.min(64, Math.floor(w / 16)) }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.32,
+        vy: (Math.random() - 0.5) * 0.32,
+        r: 1 + Math.random() * 2.2,
+      }));
+    };
+    const tick = () => {
+      const w = particlesCanvas.width / DPR;
+      const h = particlesCanvas.height / DPR;
+      const dark = root.dataset.theme === 'dark';
+      const line = dark ? '34,211,238' : '6,42,69';
+      const dot = dark ? '34,211,238' : '0,166,166';
+      ctx.clearRect(0, 0, w, h);
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+      });
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const a = particles[i];
+          const b = particles[j];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          if (dist < 130) {
+            ctx.strokeStyle = `rgba(${line},${(0.16 * (1 - dist / 130)).toFixed(3)})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+      particles.forEach((p) => {
+        ctx.fillStyle = `rgba(${dot},0.7)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      pRaf = requestAnimationFrame(tick);
+    };
+    const pStart = () => { pSize(); spawn(); cancelAnimationFrame(pRaf); pRaf = requestAnimationFrame(tick); };
+    window.addEventListener('resize', pStart);
+    pStart();
+  }
+
   /* ---------- Close mobile nav on link click ---------- */
   const navCollapse = document.getElementById('navMain');
   if (navCollapse) {
@@ -200,6 +284,25 @@
     });
   }
 
+  /* ---------- Password visibility toggles ---------- */
+  document.querySelectorAll('.form-floating input[type="password"]').forEach((input) => {
+    const wrap = input.closest('.form-floating');
+    if (!wrap) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'password-toggle';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.setAttribute('tabindex', '0');
+    btn.innerHTML = '<i class="fa-regular fa-eye" aria-hidden="true"></i>';
+    btn.addEventListener('click', () => {
+      const reveal = input.type === 'password';
+      input.type = reveal ? 'text' : 'password';
+      btn.innerHTML = `<i class="fa-${reveal ? 'solid' : 'regular'} fa-eye${reveal ? '-slash' : ''}" aria-hidden="true"></i>`;
+      btn.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+    });
+    wrap.appendChild(btn);
+  });
+
   /* ---------- Bootstrap custom validation + confirm match ---------- */
   document.querySelectorAll('.needs-validation').forEach((form) => {
     const clearValidity = (input) =>
@@ -238,6 +341,18 @@
     );
   });
 
+  /* ---------- Submit loading state ---------- */
+  document.querySelectorAll('form').forEach((form) => {
+    form.addEventListener('submit', () => {
+      if (form.checkValidity()) {
+        form.querySelectorAll('button[type="submit"]').forEach((btn) => {
+          btn.classList.add('is-loading');
+          btn.disabled = true;
+        });
+      }
+    });
+  });
+
   /* ---------- Notification bell + overlay ---------- */
   const bell = document.getElementById('notificationBell');
   if (bell) {
@@ -269,9 +384,48 @@
     };
 
     const updateBadge = (count) => {
-      if (!badge) return;
-      badge.textContent = count > 99 ? '99+' : String(count);
-      badge.hidden = count === 0;
+      if (badge) {
+        if (count > 0) {
+          badge.textContent = count > 99 ? '99+' : String(count);
+          badge.hidden = false;
+          badge.style.display = 'inline-flex';
+        } else {
+          badge.textContent = '';
+          badge.hidden = true;
+          badge.style.display = 'none';
+        }
+      }
+      document.querySelectorAll('.sidebar-unread').forEach((sb) => {
+        if (count > 0) {
+          sb.textContent = count > 99 ? '99+' : String(count);
+          sb.hidden = false;
+        } else {
+          sb.remove();
+        }
+      });
+    };
+
+    const NOTIF_ICONS = {
+      appointments: 'calendar-check',
+      laboratory: 'flask-vial',
+      prescriptions: 'prescription-bottle-medical',
+      records: 'file-medical',
+      access: 'user-shield',
+      blood: 'droplet',
+      security: 'lock',
+      general: 'bell',
+    };
+
+    const notifCategory = (type) => {
+      const t = String(type || '').toLowerCase();
+      if (t.includes('appoint')) return 'appointments';
+      if (t.includes('laborat') || t.includes('lab')) return 'laboratory';
+      if (t.includes('prescript')) return 'prescriptions';
+      if (t.includes('record') || t.includes('medical')) return 'records';
+      if (t.includes('access')) return 'access';
+      if (t.includes('blood')) return 'blood';
+      if (t.includes('security')) return 'security';
+      return 'general';
     };
 
     const renderList = (notifications) => {
@@ -281,14 +435,20 @@
         return;
       }
       list.innerHTML = notifications
-        .map(
-          (n) => `
+        .map((n) => {
+          const key = notifCategory(n.notification_type);
+          return `
             <div class="notification-item${n.is_read ? '' : ' notification-item-unread'}">
-              <div class="notification-item-title">${escapeHtml(n.title)}</div>
-              <div class="notification-item-msg">${escapeHtml(n.message)}</div>
-              <div class="notification-item-time">${escapeHtml(n.notification_type)} \u2022 ${timeAgo(n.created_at)}</div>
-            </div>`
-        )
+              <div class="d-flex gap-2 align-items-start">
+                <span class="notif-type-icon t-${key}" aria-hidden="true"><i class="fa-solid fa-${NOTIF_ICONS[key]}"></i></span>
+                <div class="flex-grow-1">
+                  <div class="notification-item-title">${escapeHtml(n.title)}</div>
+                  <div class="notification-item-msg">${escapeHtml(n.message)}</div>
+                  <div class="notification-item-time">${escapeHtml(n.notification_type)} \u2022 ${timeAgo(n.created_at)}</div>
+                </div>
+              </div>
+            </div>`;
+        })
         .join('');
     };
 
@@ -327,7 +487,10 @@
       const willOpen = overlay.hidden;
       overlay.hidden = !willOpen;
       bell.setAttribute('aria-expanded', String(willOpen));
-      if (willOpen) loadNotifications();
+      if (willOpen) {
+        loadNotifications();
+        markAllRead();
+      }
     });
 
   if (markAll) {
@@ -355,6 +518,23 @@
     setInterval(loadNotifications, 30000);
   }
 
+  /* ---------- Toast helper ---------- */
+  window.nhreToast = (message, error = false) => {
+    let toast = document.querySelector('.nhre-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'nhre-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+    toast.classList.toggle('is-error', error);
+    toast.innerHTML = `<i class="fa-solid fa-circle-${error ? 'xmark' : 'check'}" aria-hidden="true"></i><span>${message}</span>`;
+    toast.classList.add('show');
+    window.clearTimeout(window.__nhreToastTimer);
+    window.__nhreToastTimer = window.setTimeout(() => toast.classList.remove('show'), 3200);
+  };
+
   /* ---------- Smooth page transitions ---------- */
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     document.querySelectorAll('a[href]').forEach((link) => {
@@ -369,4 +549,11 @@
       });
     });
   }
+
+  /* ---------- Reset transition state when restored from bfcache ---------- */
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      document.body.classList.remove('page-leaving');
+    }
+  });
 })();

@@ -10,11 +10,11 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
-    href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-9">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
   <script>
     (function () {
       try {
@@ -64,6 +64,7 @@
     <!-- ================= HERO ================= -->
     <header class="hero" id="home">
       <div class="hero-bg-anim" aria-hidden="true"></div>
+      <canvas id="nhre-particles" aria-hidden="true"></canvas>
       <div class="floating-icon floating-icon-hospital" aria-hidden="true"><i
           class="fa-solid fa-house-chimney-medical"></i></div>
       <div class="floating-icon floating-icon-doctor" aria-hidden="true"><i class="fa-solid fa-user-doctor"></i></div>
@@ -149,6 +150,7 @@
             <div class="stat-label">Availability</div>
           </div>
         </div>
+        <p class="stats-note"><i class="fa-solid fa-circle-info me-1"></i>Illustrative figures shown for demonstration purposes only.</p>
       </div>
     </section>
 
@@ -621,7 +623,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-5"></script>
+  <script src="assets/js/app.js?v=20260811-8"></script>
 </body>
 
 </html>

@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/auth/auth_check.php';
+require_once __DIR__ . '/includes/pharmacy_functions.php';
 require_role(['Patient', 'Pharmacist']);
+
+ensure_pharmacy_tables();
+expire_stale_prescriptions();
 
 $fullname = $_SESSION['fullname'] ?? 'NHRE User';
 $email = $_SESSION['email'] ?? '';
@@ -10,96 +14,88 @@ $errors = session_pull('errors', []);
 $old = session_pull('old', []);
 $success = session_pull('success');
 
-ensure_pharmacy_requests_table_exists();
+if ($role === 'Pharmacist') {
+    try {
+        $stats = [];
+        foreach (db()->query("SELECT status, COUNT(*) AS c FROM prescriptions GROUP BY status")->fetchAll() as $row) {
+            $stats[(string)$row['status']] = (int)$row['c'];
+        }
+        $stats['dispensed_today'] = (int)db()->query("SELECT COUNT(*) FROM dispensings WHERE DATE(created_at) = CURDATE()")->fetchColumn();
 
-$recent_requests = [];
-if (isset($_SESSION['user_id'])) {
+        $recent = db()->query(
+            'SELECT p.id, p.prescription_no, p.status, p.created_at, pat.fullname AS patient_name
+               FROM prescriptions p
+               JOIN users pat ON pat.id = p.patient_id
+              ORDER BY p.created_at DESC
+              LIMIT 8'
+        )->fetchAll();
+
+        $medicines = db()->query(
+            'SELECT id, name, unit, reorder_level FROM medicines WHERE is_active = 1 ORDER BY name ASC'
+        )->fetchAll();
+        $lowStock = [];
+        foreach ($medicines as $medicine) {
+            $summary = medicine_stock_summary((int)$medicine['id']);
+            if ($summary['available'] < (int)$medicine['reorder_level']) {
+                $medicine['available'] = $summary['available'];
+                $lowStock[] = $medicine;
+            }
+        }
+    } catch (PDOException $e) {
+        $stats = [];
+        $recent = [];
+        $lowStock = [];
+    }
+} else {
+    $recent_requests = [];
     try {
         $stmt = db()->prepare(
             'SELECT medicine_name, notes, status, created_at
-             FROM pharmacy_requests
-             WHERE user_id = ?
-             ORDER BY created_at DESC
-             LIMIT 10'
+               FROM pharmacy_requests
+              WHERE user_id = ?
+              ORDER BY created_at DESC
+              LIMIT 10'
         );
         $stmt->execute([(int)$_SESSION['user_id']]);
         $recent_requests = $stmt->fetchAll();
     } catch (PDOException $e) {
         $recent_requests = [];
     }
-}
 
-$medicines = [
-    ['name' => 'Paracetamol 500mg', 'category' => 'Pain Relief', 'stock' => 'In stock', 'price' => '৳ 4', 'description' => 'Common medicine for fever, headache, and mild pain relief.'],
-    ['name' => 'Naproxen 250mg', 'category' => 'Pain Relief', 'stock' => 'In stock', 'price' => '৳ 18', 'description' => 'Useful for joint pain, muscle pain, and inflammatory discomfort.'],
-    ['name' => 'Ibuprofen 400mg', 'category' => 'Pain Relief', 'stock' => 'Limited', 'price' => '৳ 22', 'description' => 'Popular anti-inflammatory medicine for pain and swelling.'],
-    ['name' => 'Amoxicillin 250mg', 'category' => 'Antibiotic', 'stock' => 'In stock', 'price' => '৳ 35', 'description' => 'Widely used antibiotic for bacterial infections.'],
-    ['name' => 'Azithromycin 500mg', 'category' => 'Antibiotic', 'stock' => 'In stock', 'price' => '৳ 55', 'description' => 'Commonly prescribed for respiratory and throat infections.'],
-    ['name' => 'Cefixime 200mg', 'category' => 'Antibiotic', 'stock' => 'Limited', 'price' => '৳ 48', 'description' => 'Broad-spectrum antibiotic often used for common bacterial ailments.'],
-    ['name' => 'Metronidazole 400mg', 'category' => 'Antibiotic', 'stock' => 'In stock', 'price' => '৳ 26', 'description' => 'Used for certain infections and parasitic conditions.'],
-    ['name' => 'Ciprofloxacin 500mg', 'category' => 'Antibiotic', 'stock' => 'Limited', 'price' => '৳ 40', 'description' => 'Prescription antibiotic for several bacterial infections.'],
-    ['name' => 'Omeprazole 20mg', 'category' => 'Gastrointestinal', 'stock' => 'In stock', 'price' => '৳ 18', 'description' => 'Acid reducer used for acidity, reflux, and ulcers.'],
-    ['name' => 'Ranitidine 150mg', 'category' => 'Gastrointestinal', 'stock' => 'Limited', 'price' => '৳ 16', 'description' => 'Used for acidity and stomach ulcer related symptoms.'],
-    ['name' => 'Domperidone 10mg', 'category' => 'Gastrointestinal', 'stock' => 'In stock', 'price' => '৳ 20', 'description' => 'Helps relieve nausea and improve stomach movement.'],
-    ['name' => 'Hydroxyzine 25mg', 'category' => 'Allergy', 'stock' => 'In stock', 'price' => '৳ 28', 'description' => 'Used for allergy symptoms, itching, and anxiety relief.'],
-    ['name' => 'Cetirizine 10mg', 'category' => 'Allergy', 'stock' => 'In stock', 'price' => '৳ 15', 'description' => 'Common antihistamine for sneezing, runny nose, and rashes.'],
-    ['name' => 'Loratadine 10mg', 'category' => 'Allergy', 'stock' => 'In stock', 'price' => '৳ 17', 'description' => 'Used for seasonal allergies and mild allergic reactions.'],
-    ['name' => 'Vitamin C 1000mg', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 24', 'description' => 'Supports immunity and daily wellness needs.'],
-    ['name' => 'Vitamin D3 1000 IU', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 30', 'description' => 'Helps support bone strength and vitamin D levels.'],
-    ['name' => 'Calcium + Vitamin D', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 35', 'description' => 'Common supplement for bone health and daily nutrition.'],
-    ['name' => 'Omega 3 Capsule', 'category' => 'Supplements', 'stock' => 'Limited', 'price' => '৳ 42', 'description' => 'Supports heart and brain health.'],
-    ['name' => 'Multivitamin Tablet', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 28', 'description' => 'Daily supplement for essential vitamins and minerals.'],
-    ['name' => 'Insulin Glargine', 'category' => 'Diabetes Care', 'stock' => 'Limited', 'price' => '৳ 1800', 'description' => 'Long-acting insulin commonly used in diabetes management.'],
-    ['name' => 'Metformin 500mg', 'category' => 'Diabetes Care', 'stock' => 'In stock', 'price' => '৳ 22', 'description' => 'Common oral medicine for type 2 diabetes control.'],
-    ['name' => 'Gliclazide 80mg', 'category' => 'Diabetes Care', 'stock' => 'In stock', 'price' => '৳ 30', 'description' => 'Used to help control blood sugar in diabetic patients.'],
-    ['name' => 'Amlodipine 5mg', 'category' => 'Cardiology', 'stock' => 'In stock', 'price' => '৳ 18', 'description' => 'Blood pressure medication used for hypertension control.'],
-    ['name' => 'Atorvastatin 20mg', 'category' => 'Cardiology', 'stock' => 'In stock', 'price' => '৳ 35', 'description' => 'Used to lower cholesterol and lower heart risk.'],
-    ['name' => 'Losartan 50mg', 'category' => 'Cardiology', 'stock' => 'Limited', 'price' => '৳ 28', 'description' => 'Common antihypertensive medicine for blood pressure.'],
-    ['name' => 'Aspirin 75mg', 'category' => 'Cardiology', 'stock' => 'In stock', 'price' => '৳ 12', 'description' => 'Used for heart protection and mild pain relief.'],
-    ['name' => 'Salbutamol Inhaler', 'category' => 'Respiratory', 'stock' => 'In stock', 'price' => '৳ 180', 'description' => 'Relief inhaler used for wheezing and asthma symptoms.'],
-    ['name' => 'Beclomethasone Inhaler', 'category' => 'Respiratory', 'stock' => 'Limited', 'price' => '৳ 220', 'description' => 'Controller inhaler used for long-term asthma management.'],
-    ['name' => 'Montelukast 10mg', 'category' => 'Respiratory', 'stock' => 'In stock', 'price' => '৳ 40', 'description' => 'Helps control asthma and allergy-related breathing issues.'],
-    ['name' => 'Amoxicillin-Clavulanic Acid', 'category' => 'Antibiotic', 'stock' => 'In stock', 'price' => '৳ 60', 'description' => 'Combination antibiotic for broader bacterial coverage.'],
-    ['name' => 'Doxycycline 100mg', 'category' => 'Antibiotic', 'stock' => 'Limited', 'price' => '৳ 32', 'description' => 'Common antibiotic used for many bacterial infections.'],
-    ['name' => 'Levofloxacin 500mg', 'category' => 'Antibiotic', 'stock' => 'Limited', 'price' => '৳ 44', 'description' => 'Broad-spectrum antibiotic used for respiratory and urinary issues.'],
-    ['name' => 'Albendazole 400mg', 'category' => 'Anti-parasitic', 'stock' => 'In stock', 'price' => '৳ 18', 'description' => 'Used for deworming and parasitic infections.'],
-    ['name' => 'Mebendazole 100mg', 'category' => 'Anti-parasitic', 'stock' => 'In stock', 'price' => '৳ 16', 'description' => 'Common anti-worm medicine for intestinal parasites.'],
-    ['name' => 'Fluconazole 150mg', 'category' => 'Antifungal', 'stock' => 'In stock', 'price' => '৳ 28', 'description' => 'Used for fungal infections like candidiasis.'],
-    ['name' => 'Clotrimazole Cream', 'category' => 'Antifungal', 'stock' => 'In stock', 'price' => '৳ 24', 'description' => 'Topical antifungal for skin infections.'],
-    ['name' => 'Ketoconazole Shampoo', 'category' => 'Antifungal', 'stock' => 'Limited', 'price' => '৳ 35', 'description' => 'Used for dandruff and fungal scalp conditions.'],
-    ['name' => 'Cough Syrup', 'category' => 'Respiratory', 'stock' => 'In stock', 'price' => '৳ 26', 'description' => 'Supportive cough medicine for common cold symptoms.'],
-    ['name' => 'Guaifenesin 200mg', 'category' => 'Respiratory', 'stock' => 'In stock', 'price' => '৳ 24', 'description' => 'Expectorant used to loosen mucus and ease cough.'],
-    ['name' => 'Pseudoephidrine', 'category' => 'Respiratory', 'stock' => 'Limited', 'price' => '৳ 30', 'description' => 'Used for nasal congestion and cold symptoms.'],
-    ['name' => 'Lorazepam 2mg', 'category' => 'Neurology', 'stock' => 'Limited', 'price' => '৳ 40', 'description' => 'Used for anxiety and short-term sleep support under guidance.'],
-    ['name' => 'Escitalopram 10mg', 'category' => 'Neurology', 'stock' => 'Limited', 'price' => '৳ 55', 'description' => 'Prescription medicine for anxiety and depression.'],
-    ['name' => 'Paroxetine 20mg', 'category' => 'Neurology', 'stock' => 'Limited', 'price' => '৳ 48', 'description' => 'Common antidepressant used in mental health treatment.'],
-    ['name' => 'Diazepam 5mg', 'category' => 'Neurology', 'stock' => 'Limited', 'price' => '৳ 35', 'description' => 'Used for anxiety, muscle spasm, and seizure-related conditions.'],
-    ['name' => 'Lansoprazole 30mg', 'category' => 'Gastrointestinal', 'stock' => 'In stock', 'price' => '৳ 25', 'description' => 'Acid suppression medicine used for reflux and ulcers.'],
-    ['name' => 'Pantoprazole 40mg', 'category' => 'Gastrointestinal', 'stock' => 'In stock', 'price' => '৳ 28', 'description' => 'Proton pump inhibitor for acidity and related digestive issues.'],
-    ['name' => 'Sodium Bicarbonate', 'category' => 'Gastrointestinal', 'stock' => 'In stock', 'price' => '৳ 12', 'description' => 'Used as an antacid for temporary relief of heartburn.'],
-    ['name' => 'Oral Rehydration Salts', 'category' => 'Emergency Care', 'stock' => 'In stock', 'price' => '৳ 14', 'description' => 'Essential hydration solution for dehydration caused by diarrhea.'],
-    ['name' => 'Glucose Powder', 'category' => 'Emergency Care', 'stock' => 'In stock', 'price' => '৳ 16', 'description' => 'Energy supplement used for quick recovery and hydration support.'],
-    ['name' => 'B Complex Tablet', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 20', 'description' => 'Helps support metabolism and energy production.'],
-    ['name' => 'Iron Tablet', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 18', 'description' => 'Common supplement for iron deficiency and anemia support.'],
-    ['name' => 'Folic Acid 5mg', 'category' => 'Supplements', 'stock' => 'In stock', 'price' => '৳ 10', 'description' => 'Supports red blood cell formation and pregnancy nutrition.'],
-    ['name' => 'Naproxen 500mg', 'category' => 'Pain Relief', 'stock' => 'Limited', 'price' => '৳ 30', 'description' => 'Higher-dose pain medicine for stronger relief.'],
-    ['name' => 'Levocetirizine 5mg', 'category' => 'Allergy', 'stock' => 'In stock', 'price' => '৳ 20', 'description' => 'Second-generation antihistamine for allergy symptoms.'],
-    ['name' => 'Budesonide Nasal Spray', 'category' => 'Allergy', 'stock' => 'Limited', 'price' => '৳ 95', 'description' => 'Used for allergic rhinitis and nasal congestion.'],
-    ['name' => 'Hydrochlorothiazide 25mg', 'category' => 'Cardiology', 'stock' => 'Limited', 'price' => '৳ 16', 'description' => 'Diuretic used for fluid retention and high blood pressure.'],
-    ['name' => 'Glimepiride 2mg', 'category' => 'Diabetes Care', 'stock' => 'In stock', 'price' => '৳ 26', 'description' => 'Oral medicine used to control blood sugar levels.'],
-];
+    $medicines = [];
+    try {
+        $rows = db()->query(
+            'SELECT m.name, m.category, m.unit, m.reorder_level,
+                    (SELECT COALESCE(SUM(b.quantity_remaining), 0) FROM medicine_batches b WHERE b.medicine_id = m.id AND b.expiry_date > CURDATE()) AS available
+               FROM medicines m
+              WHERE m.is_active = 1
+              ORDER BY m.name ASC
+              LIMIT 20'
+        )->fetchAll();
+        foreach ($rows as $row) {
+            $medicines[] = [
+                'name' => $row['name'],
+                'category' => $row['category'] ?: 'General',
+                'stock' => (int)$row['available'] > 0 ? 'In stock' : 'Unavailable',
+                'unit' => $row['unit'],
+            ];
+        }
+    } catch (PDOException $e) {
+        $medicines = [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pharmacy - NHRE</title>
+  <title>Pharmacy<?= $role === 'Pharmacist' ? ' Dashboard' : '' ?> - NHRE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260807-13">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
 <script>
   (function () {
     try {
@@ -115,31 +111,14 @@ $medicines = [
 </head>
 <body class="dashboard-body">
   <?php require __DIR__ . '/includes/sidebar.php'; ?>
-  <nav class="dashboard-nav">
-    <div class="container d-flex align-items-center justify-content-between gap-3">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="dashboard.php">
-        <img src="assets/images/nhre-logo.svg" alt="NHRE" class="nhre-logo-img">
-      </a>
-      <div class="d-flex gap-2">
-        <a href="dashboard.php" class="btn btn-dashboard-logout ripple">
-          <i class="fa-solid fa-house"></i>
-          <span>Dashboard</span>
-        </a>
-        <a href="logout.php" class="btn btn-dashboard-logout ripple">
-          <i class="fa-solid fa-arrow-right-from-bracket"></i>
-          <span>Logout</span>
-        </a>
-      </div>
-    </div>
-  </nav>
-
+  <?php require __DIR__ . '/includes/topnav.php'; ?>
   <main class="dashboard-main">
     <section class="container">
       <div class="dashboard-hero glass-card">
         <div>
-          <span class="auth-kicker">Pharmacy Section</span>
-          <h1>Medicine access for <?= e($fullname) ?></h1>
-          <p>Browse essential medicines, check availability, and request prescriptions quickly.</p>
+          <span class="auth-kicker"><?= $role === 'Pharmacist' ? 'Pharmacy Dashboard' : 'Pharmacy Section' ?></span>
+          <h1><?= $role === 'Pharmacist' ? 'Pharmacy workspace for ' . e($fullname) : 'Medicine access for ' . e($fullname) ?></h1>
+          <p><?= $role === 'Pharmacist' ? 'Review prescriptions, manage inventory, and dispense medicines.' : 'Browse available medicines, check availability, and request pharmacy support.' ?></p>
         </div>
         <div class="dashboard-user-pill">
           <i class="fa-solid fa-pills"></i>
@@ -147,81 +126,161 @@ $medicines = [
         </div>
       </div>
 
-      <div class="row g-4">
-        <div class="col-lg-8">
-          <div class="row g-4">
-            <?php foreach ($medicines as $medicine): ?>
-              <div class="col-md-6">
-                <article class="dashboard-card">
-                  <div class="dashboard-card-icon"><i class="fa-solid fa-capsules"></i></div>
-                  <h2><?= e($medicine['name']) ?></h2>
-                  <p class="mb-2"><strong><?= e($medicine['category']) ?></strong></p>
-                  <p><?= e($medicine['description']) ?></p>
-                  <div class="d-flex justify-content-between align-items-center mt-3">
-                    <span class="badge bg-light text-dark"><?= e($medicine['stock']) ?></span>
-                    <span class="fw-bold text-teal"><?= e($medicine['price']) ?></span>
-                  </div>
-                </article>
-              </div>
+      <?php if ($errors): ?>
+        <div class="alert alert-danger auth-alert mt-4" role="alert">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <div>
+            <?php foreach ($errors as $message): ?>
+              <div><?= e($message) ?></div>
             <?php endforeach; ?>
           </div>
         </div>
+      <?php endif; ?>
 
-        <div class="col-lg-4">
-          <article class="dashboard-card">
-            <div class="dashboard-card-icon"><i class="fa-solid fa-file-medical"></i></div>
-            <h2>Request Pharmacy Support</h2>
-            <p>Need urgent medication assistance? Submit a request and our team will follow up.</p>
-
-            <?php if ($success): ?>
-              <div class="alert alert-success" role="alert"><?= e($success) ?></div>
-            <?php endif; ?>
-
-            <?php if ($errors): ?>
-              <div class="alert alert-danger" role="alert">
-                <?php foreach ($errors as $message): ?>
-                  <div><?= e($message) ?></div>
-                <?php endforeach; ?>
-              </div>
-            <?php endif; ?>
-
-            <form class="mt-3" action="auth/pharmacy_request_process.php" method="POST">
-              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
-              <div class="mb-3">
-                <label class="form-label" for="medicine_name">Medicine Name</label>
-                <input type="text" class="form-control" id="medicine_name" name="medicine_name" placeholder="e.g. Paracetamol" value="<?= e($old['medicine_name'] ?? '') ?>" required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label" for="notes">Prescription Notes</label>
-                <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Add dosage or urgency details"><?= e($old['notes'] ?? '') ?></textarea>
-              </div>
-              <button type="submit" class="btn btn-solid-nhre w-100">
-                <i class="fa-solid fa-paper-plane"></i> Submit Request
-              </button>
-            </form>
-
-            <?php if ($recent_requests): ?>
-              <hr class="my-4">
-              <h2 class="fs-6">Recent Requests</h2>
-              <ul class="list-group list-group-flush mt-3">
-                <?php foreach ($recent_requests as $request): ?>
-                  <li class="list-group-item px-0">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <strong><?= e($request['medicine_name']) ?></strong>
-                      <span class="badge bg-secondary text-white text-capitalize"><?= e($request['status']) ?></span>
-                    </div>
-                    <small class="text-muted"><?= e(date('j M Y, g:i a', strtotime($request['created_at']))) ?></small>
-                  </li>
-                <?php endforeach; ?>
-              </ul>
-            <?php endif; ?>
-          </article>
+      <?php if ($success): ?>
+        <div class="alert alert-success auth-alert mt-4" role="alert">
+          <i class="fa-solid fa-circle-check"></i>
+          <span><?= e($success) ?></span>
         </div>
-      </div>
+      <?php endif; ?>
+
+      <?php if ($role === 'Pharmacist'): ?>
+        <div class="row g-4 mt-1 dashboard-cards">
+          <div class="col-6 col-xl-3">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-clock"></i></div>
+              <h2><?= (int)($stats['PENDING'] ?? 0) ?></h2>
+              <p>Pending prescriptions</p>
+              <a href="prescriptions.php?status=PENDING" class="dashboard-card-link">Review</a>
+            </article>
+          </div>
+          <div class="col-6 col-xl-3">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-box-open"></i></div>
+              <h2><?= (int)($stats['VERIFIED'] ?? 0) + (int)($stats['READY'] ?? 0) ?></h2>
+              <p>Verified / ready</p>
+              <a href="prescriptions.php?status=VERIFIED" class="dashboard-card-link">Prepare</a>
+            </article>
+          </div>
+          <div class="col-6 col-xl-3">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-hand-holding-medical"></i></div>
+              <h2><?= (int)($stats['dispensed_today'] ?? 0) ?></h2>
+              <p>Dispensed today</p>
+              <a href="dispensing_history.php" class="dashboard-card-link">History</a>
+            </article>
+          </div>
+          <div class="col-6 col-xl-3">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+              <h2><?= count($lowStock) ?></h2>
+              <p>Low / out of stock</p>
+              <a href="stock.php" class="dashboard-card-link">Restock</a>
+            </article>
+          </div>
+        </div>
+
+        <div class="row g-4 mt-1">
+          <div class="col-lg-7">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-prescription"></i></div>
+              <h2>Recent prescriptions</h2>
+              <?php if ($recent): ?>
+                <div class="list-group list-group-flush mt-3">
+                  <?php foreach ($recent as $prescription): ?>
+                    <a href="prescription_view.php?id=<?= (int)$prescription['id'] ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong><?= e($prescription['prescription_no']) ?></strong>
+                        <div class="text-muted small"><?= e($prescription['patient_name']) ?> • <?= e(date('j M Y, g:i a', strtotime($prescription['created_at']))) ?></div>
+                      </div>
+                      <?= pharmacy_status_badge((string)$prescription['status']) ?>
+                    </a>
+                  <?php endforeach; ?>
+                </div>
+              <?php else: ?>
+                <p class="text-muted mt-3">No prescriptions yet.</p>
+              <?php endif; ?>
+            </article>
+          </div>
+          <div class="col-lg-5">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
+              <h2>Inventory shortcuts</h2>
+              <div class="d-grid gap-2 mt-3">
+                <a href="inventory.php" class="btn btn-solid-nhre"><i class="fa-solid fa-boxes-stacked"></i> Medicine inventory</a>
+                <a href="stock.php" class="btn btn-outline-nhre"><i class="fa-solid fa-boxes-packing"></i> Stock management</a>
+                <a href="dispensing_history.php" class="btn btn-outline-nhre"><i class="fa-solid fa-clock-rotate-left"></i> Dispensing history</a>
+                <a href="patient_search.php" class="btn btn-outline-nhre"><i class="fa-solid fa-magnifying-glass"></i> Patient search</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      <?php else: ?>
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="row g-4">
+              <?php if ($medicines): ?>
+                <?php foreach ($medicines as $medicine): ?>
+                  <div class="col-md-6">
+                    <article class="dashboard-card">
+                      <div class="dashboard-card-icon"><i class="fa-solid fa-capsules"></i></div>
+                      <h2><?= e($medicine['name']) ?></h2>
+                      <p class="mb-2"><strong><?= e($medicine['category']) ?></strong> • <?= e($medicine['unit']) ?></p>
+                      <span class="badge rounded-pill <?= $medicine['stock'] === 'In stock' ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis' ?>">
+                        <?= e($medicine['stock']) ?>
+                      </span>
+                    </article>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <div class="col-12"><p class="text-muted">The medicine catalog is being prepared.</p></div>
+              <?php endif; ?>
+            </div>
+          </div>
+
+          <div class="col-lg-4">
+            <article class="dashboard-card">
+              <div class="dashboard-card-icon"><i class="fa-solid fa-file-medical"></i></div>
+              <h2>Request Pharmacy Support</h2>
+              <p>Need urgent medication assistance? Submit a request and our team will follow up.</p>
+              <form class="mt-3" action="auth/pharmacy_request_process.php" method="POST">
+                <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+                <div class="mb-3">
+                  <label class="form-label" for="medicine_name">Medicine Name</label>
+                  <input type="text" class="form-control" id="medicine_name" name="medicine_name" placeholder="e.g. Paracetamol" value="<?= e((string)($old['medicine_name'] ?? '')) ?>" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label" for="notes">Prescription Notes</label>
+                  <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Add dosage or urgency details"><?= e((string)($old['notes'] ?? '')) ?></textarea>
+                </div>
+                <button type="submit" class="btn btn-solid-nhre w-100">
+                  <i class="fa-solid fa-paper-plane"></i> Submit Request
+                </button>
+              </form>
+
+              <?php if ($recent_requests): ?>
+                <hr class="my-4">
+                <h2 class="fs-6">Recent Requests</h2>
+                <ul class="list-group list-group-flush mt-3">
+                  <?php foreach ($recent_requests as $request): ?>
+                    <li class="list-group-item px-0">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <strong><?= e($request['medicine_name']) ?></strong>
+                        <span class="badge bg-secondary text-white text-capitalize"><?= e($request['status']) ?></span>
+                      </div>
+                      <small class="text-muted"><?= e(date('j M Y, g:i a', strtotime($request['created_at']))) ?></small>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              <?php endif; ?>
+            </article>
+          </div>
+        </div>
+      <?php endif; ?>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260807-5"></script>
+  <script src="assets/js/app.js?v=20260811-8"></script>
 </body>
 </html>
