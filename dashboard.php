@@ -81,7 +81,7 @@ $success = session_pull('success');
         </div>
       <?php endif; ?>
 
-      <div class="row g-4 mt-1 dashboard-cards">
+      <?php if (false): ?><div class="row g-4 mt-1 dashboard-cards">
         <div class="col-md-6 col-xl-3">
           <article class="dashboard-card">
             <div class="dashboard-card-icon"><i class="fa-solid fa-user"></i></div>
@@ -153,9 +153,38 @@ $success = session_pull('success');
             <a href="logout.php" class="dashboard-card-link">Logout Securely</a>
           </article>
         </div>
-      </div>
+      </div><?php endif; ?>
 
       <section class="mt-4">
+        <div class="d-flex align-items-end justify-content-between gap-3 mb-3">
+          <div>
+            <span class="auth-kicker">Your Workspace</span>
+            <h2 class="mb-0">All sidebar sections</h2>
+          </div>
+          <span class="text-muted small">Quick access for <?= e($role) ?></span>
+        </div>
+        <div class="row g-4 dashboard-cards">
+          <?php foreach ($sidebarLinks as $workspaceLink): ?>
+            <?php
+            [$workspaceHref, $workspaceIcon, $workspaceLabel] = $workspaceLink;
+            $workspacePlanned = (bool)($workspaceLink[3] ?? false);
+            if ($workspaceLabel === 'Dashboard') {
+                continue;
+            }
+            ?>
+            <div class="col-md-6 col-xl-3">
+              <article class="dashboard-card">
+                <div class="dashboard-card-icon"><i class="fa-solid <?= e($workspaceIcon) ?>"></i></div>
+                <h2><?= e($workspaceLabel) ?></h2>
+                <p><?= $workspacePlanned ? 'This workspace is available in the current role navigation.' : 'Open this workspace from your dashboard.' ?></p>
+                <a href="<?= e($workspaceHref) ?>" class="dashboard-card-link">Open <?= e($workspaceLabel) ?></a>
+              </article>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+
+      <?php if (false): ?><section class="mt-4">
         <div class="dashboard-hero glass-card">
           <div>
             <span class="auth-kicker">Appointment Workspace</span>
@@ -178,7 +207,7 @@ $success = session_pull('success');
             </article>
           </div>
         </div>
-      </section>
+      </section><?php endif; ?>
     </section>
   </main>
 

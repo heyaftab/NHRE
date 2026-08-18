@@ -183,8 +183,11 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `target_path`       VARCHAR(255) NULL,
   `created_at`        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `is_read`           TINYINT(1)   NOT NULL DEFAULT 0,
+  `related_url`       VARCHAR(255) NULL DEFAULT NULL,
+  `event_key`         VARCHAR(120) NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_notifications_user` (`user_id`),
+  UNIQUE KEY `uq_notifications_event` (`user_id`, `event_key`),
   CONSTRAINT `fk_notifications_user`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -201,6 +204,8 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `reason`           TEXT            NOT NULL,
   `status`           VARCHAR(30)     NOT NULL DEFAULT 'Pending',
   `doctor_notes`     TEXT            NULL,
+  `rejection_reason` TEXT            NULL,
+  `status_updated_at` DATETIME       NULL,
   `created_at`       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`appointment_id`),
   KEY `idx_appointments_patient` (`patient_id`),
@@ -210,6 +215,28 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   CONSTRAINT `fk_appointments_doctor`
     FOREIGN KEY (`doctor_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   UNIQUE KEY `uq_appointments_slot` (`doctor_id`, `appointment_date`, `appointment_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Clinical record additions (safe alongside existing modules)
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `allergies` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `patient_id` INT UNSIGNED NOT NULL,
+  `allergy_type` VARCHAR(40) NOT NULL, `name` VARCHAR(150) NOT NULL, `reaction_text` VARCHAR(255) NULL,
+  `severity` VARCHAR(20) NOT NULL DEFAULT 'Moderate', `notes` TEXT NULL, `recorded_at` DATE NOT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1, `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_allergies_patient` (`patient_id`),
+  CONSTRAINT `fk_allergies_patient` FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `medical_documents` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `patient_id` INT UNSIGNED NOT NULL, `uploaded_by` INT UNSIGNED NOT NULL,
+  `category` VARCHAR(60) NOT NULL, `original_name` VARCHAR(255) NOT NULL, `stored_name` VARCHAR(100) NOT NULL,
+  `mime_type` VARCHAR(100) NOT NULL, `file_size` INT UNSIGNED NOT NULL, `source_name` VARCHAR(150) NULL, `notes` TEXT NULL,
+  `verification_status` VARCHAR(30) NOT NULL DEFAULT 'Pending Verification', `verification_note` TEXT NULL,
+  `verified_by` INT UNSIGNED NULL, `verified_at` DATETIME NULL, `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`), KEY `idx_documents_patient` (`patient_id`),
+  CONSTRAINT `fk_documents_patient` FOREIGN KEY (`patient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------

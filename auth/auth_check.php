@@ -233,6 +233,43 @@ function create_notification(int $user_id, string $title, string $message, strin
     }
 }
 
+/** Create the clinical tables used by records/document pages without replacing existing data. */
+function ensure_clinical_tables(): void
+{
+    $pdo = db();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS allergies (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, patient_id INT UNSIGNED NOT NULL,
+        allergy_type VARCHAR(40) NOT NULL, name VARCHAR(150) NOT NULL, reaction_text VARCHAR(255) NULL,
+        severity VARCHAR(20) NOT NULL DEFAULT 'Moderate', notes TEXT NULL, recorded_at DATE NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_allergies_patient (patient_id), CONSTRAINT fk_allergies_patient FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS medical_documents (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, patient_id INT UNSIGNED NOT NULL, uploaded_by INT UNSIGNED NOT NULL,
+        category VARCHAR(60) NOT NULL, original_name VARCHAR(255) NOT NULL, stored_name VARCHAR(100) NOT NULL,
+        mime_type VARCHAR(100) NOT NULL, file_size INT UNSIGNED NOT NULL, source_name VARCHAR(150) NULL, notes TEXT NULL,
+        verification_status VARCHAR(30) NOT NULL DEFAULT 'Pending Verification', verification_note TEXT NULL,
+        verified_by INT UNSIGNED NULL, verified_at DATETIME NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_documents_patient (patient_id), CONSTRAINT fk_documents_patient FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS clinical_encounters (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, appointment_id INT UNSIGNED NULL, patient_id INT UNSIGNED NOT NULL, doctor_id INT UNSIGNED NOT NULL,
+        diagnosis TEXT NULL, clinical_notes TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_encounter_appointment (appointment_id), KEY idx_encounter_patient (patient_id),
+        CONSTRAINT fk_encounter_patient FOREIGN KEY (patient_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_encounter_doctor FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try { $pdo->exec("ALTER TABLE notifications ADD COLUMN related_url VARCHAR(255) NULL, ADD COLUMN event_key VARCHAR(120) NULL, ADD UNIQUE KEY uq_notifications_event (user_id, event_key)"); } catch (PDOException $e) {}
+    try { $pdo->exec("ALTER TABLE appointments ADD COLUMN status_updated_at DATETIME NULL, ADD COLUMN rejection_reason TEXT NULL"); } catch (PDOException $e) {}
+}
+
+function create_event_notification(PDO $pdo, int $userId, string $title, string $message, string $type, string $eventKey, string $url): void
+{
+    $stmt = $pdo->prepare('INSERT INTO notifications (user_id, title, message, notification_type, related_url, event_key) VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE title = VALUES(title), message = VALUES(message), created_at = CURRENT_TIMESTAMP, is_read = 0, related_url = VALUES(related_url)');
+    $stmt->execute([$userId, $title, $message, $type, $url, $eventKey]);
+}
+
 function ensure_appointments_table_exists(): void
 {
     db()->exec(
@@ -422,7 +459,7 @@ function ensure_doctor_catalog_tables(): void
         }
 
         $doctorCount = (int)db()->query("SELECT COUNT(*) FROM users WHERE role = 'Doctor'")->fetchColumn();
-        if ($doctorCount < 50) {
+        if ($doctorCount < 100) {
             $districtRows = db()->query('SELECT id, name FROM districts ORDER BY id')->fetchAll();
             $specializationRows = db()->query('SELECT id, name FROM specializations ORDER BY id')->fetchAll();
             $hospitalRows = db()->query('SELECT id, name FROM hospitals ORDER BY id')->fetchAll();
@@ -446,7 +483,7 @@ function ensure_doctor_catalog_tables(): void
                 'INSERT INTO users (fullname, nid, email, phone, password_hash, role, gender, address, district, hospital_name, specialization, qualification, experience_years, consultation_fee, rating, reviews_count, district_id, hospital_id, specialization_id, bio, visiting_hours, awards, is_featured)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            for ($index = 1; $index <= 50; $index++) {
+            for ($index = $doctorCount + 1; $index <= 100; $index++) {
                 $firstName = $firstNames[($index - 1) % count($firstNames)];
                 $lastName = $lastNames[($index - 1) % count($lastNames)];
                 $fullname = $firstName . ' ' . $lastName;
@@ -546,32 +583,35 @@ function ensure_doctor_catalog_tables(): void
             }
         }
 
-        $patientCount = (int)db()->query("SELECT COUNT(*) FROM users WHERE email = 'patient@nhre.gov'")->fetchColumn();
-        if ($patientCount === 0) {
-            db()->prepare(
-                'INSERT INTO users (fullname, nid, email, phone, password_hash, role, gender, address, district, hospital_name, specialization, qualification, experience_years, consultation_fee, rating, reviews_count)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            )->execute([
-                'Demo Patient',
-                '2000000000',
-                'patient@nhre.gov',
-                '+8801712345678',
-                password_hash('Patient123!', PASSWORD_DEFAULT),
-                'Patient',
-                'Female',
-                'House 12, Road 4, Dhanmondi',
-                'Dhaka',
-                '',
-                '',
-                '',
-                null,
-                null,
-                null,
-                null
-            ]);
-        }
+        ensure_demo_patients_and_records();
     } catch (PDOException $e) {
     }
+}
+
+/** Seed 25 clearly labelled, repeatable demo patients and varied basic clinical records. */
+function ensure_demo_patients_and_records(): void
+{
+    ensure_clinical_tables();
+    $names = ['Amina Sultana','Rafiq Hasan','Nusrat Jahan','Shafiq Ahmed','Farzana Akter','Imran Hossain','Maliha Noor','Tanvir Islam','Sadia Rahman','Kamal Uddin','Lamia Chowdhury','Arif Mahmud','Ruma Khan','Nabil Karim','Ishrat Banu','Samiul Haque','Tasnima Das','Mahir Paul','Bithi Begum','Rony Mia','Faria Yasmin','Atik Rahman','Moushumi Akter','Sajid Hasan','Prapti Sultana'];
+    $districts = ['Dhaka','Chattogram','Rajshahi','Khulna','Sylhet','Barishal','Rangpur','Mymensingh'];
+    $blood = ['A+','B+','O+','AB+','A-','B-','O-','AB-'];
+    $pdo = db();
+    $exists = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $insert = $pdo->prepare('INSERT INTO users (fullname,nid,email,phone,password_hash,role,account_number,date_of_birth,gender,address,district,blood_group,emergency_contact,occupation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    $allergy = $pdo->prepare('INSERT INTO allergies (patient_id,allergy_type,name,reaction_text,severity,notes,recorded_at) SELECT ?,?,?,?,?,?,CURDATE() WHERE NOT EXISTS (SELECT 1 FROM allergies WHERE patient_id = ? AND name = ?)');
+    foreach ($names as $offset => $name) {
+        $n = $offset + 1; $email = $n === 1 ? 'patient@nhre.gov' : 'patient' . str_pad((string)$n, 3, '0', STR_PAD_LEFT) . '@nhre.demo';
+        $exists->execute([$email]); $id = (int)$exists->fetchColumn();
+        if ($id === 0) {
+            $insert->execute([$n === 1 ? 'Demo Patient A — ' . $name : 'DEMO Patient ' . $name, '2000000' . str_pad((string)$n, 3, '0', STR_PAD_LEFT), $email, '+88018' . str_pad((string)(10000000 + $n), 8, '0', STR_PAD_LEFT), password_hash('Patient123!', PASSWORD_DEFAULT), 'Patient', 'NHRE-P-' . str_pad((string)$n, 6, '0', STR_PAD_LEFT), sprintf('%04d-%02d-%02d', 1980 + ($n % 22), 1 + ($n % 12), 1 + ($n % 27)), $n % 2 ? 'Female' : 'Male', 'DEMO address, ' . $districts[$offset % count($districts)], $districts[$offset % count($districts)], $blood[$offset % count($blood)], '+88019' . str_pad((string)(20000000 + $n), 8, '0', STR_PAD_LEFT), $n % 2 ? 'Teacher' : 'Engineer']);
+            $id = (int)$pdo->lastInsertId();
+        }
+        $allergens = [['Drug','Penicillin','Rash','Moderate'],['Food','Peanuts','Hives','Severe'],['Environmental','Dust','Sneezing','Mild'],['Drug','Ibuprofen','Stomach upset','Moderate']];
+        $item = $allergens[$offset % count($allergens)];
+        $allergy->execute([$id,$item[0],$item[1],$item[2],$item[3],'DEMO clinical record only.',$id,$item[1]]);
+    }
+    // Keep the original demo patient's seeded requests visible after the calendar advances.
+    $pdo->exec("UPDATE appointments a JOIN users p ON p.id = a.patient_id SET a.appointment_date = CURDATE() WHERE p.email = 'patient@nhre.gov' AND a.appointment_date < CURDATE()");
 }
 
 /**

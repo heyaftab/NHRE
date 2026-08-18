@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/auth/auth_check.php';
 ensure_demo_accounts();
+ensure_doctor_profile_columns();
+ensure_doctor_catalog_tables();
 redirect_if_authenticated();
 
 $errors = session_pull('errors', []);

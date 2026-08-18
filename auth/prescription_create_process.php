@@ -15,6 +15,7 @@ if (!csrf_check($_POST['_csrf'] ?? null)) {
 }
 
 ensure_pharmacy_tables();
+ensure_clinical_tables();
 
 $patient_id = (int)($_POST['patient_id'] ?? 0);
 $notes = trim((string)($_POST['notes'] ?? ''));
@@ -122,8 +123,8 @@ try {
 
     $prescription_no = 'RX-' . strtoupper(substr(bin2hex(random_bytes(5)), 0, 8));
     $insertRx = $pdo->prepare(
-        'INSERT INTO prescriptions (prescription_no, patient_id, doctor_id, status, notes, expires_at)
-         VALUES (?, ?, ?, \'PENDING\', ?, DATE_ADD(NOW(), INTERVAL ? DAY))'
+        'INSERT INTO prescriptions (prescription_no, patient_id, doctor_id, status, notes, verified_at, expires_at)
+         VALUES (?, ?, ?, \'VERIFIED\', ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY))'
     );
     $insertRx->execute([$prescription_no, $patient_id, (int)$_SESSION['user_id'], $notes !== '' ? $notes : null, pharmacy_prescription_days_valid()]);
     $prescription_id = (int)$pdo->lastInsertId();
@@ -158,11 +159,11 @@ $itemSummary = array_map(
     $items
 );
 
-create_notification(
-    $patient_id,
+create_event_notification(
+    db(), $patient_id,
     'New prescription issued',
     'Dr. ' . ($_SESSION['fullname'] ?? 'Your doctor') . ' issued prescription ' . $prescription_no . ' for ' . $patient_name . '.',
-    'prescription'
+    'prescription', 'prescription:' . $prescription_id, 'prescription_view.php?id=' . $prescription_id
 );
 notify_pharmacists(
     'Prescription awaiting pharmacy',

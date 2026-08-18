@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth_check.php';
 ensure_appointments_table_exists();
+ensure_clinical_tables();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('../appointments.php');
@@ -67,6 +68,13 @@ try {
         redirect('../appointments.php');
     }
 
+    $stmt = db()->prepare("SELECT appointment_id FROM appointments WHERE patient_id = ? AND appointment_date = ? AND appointment_time = ? AND status IN ('Pending', 'Approved') LIMIT 1");
+    $stmt->execute([$user_id, $appointment_date, $appointment_time]);
+    if ($stmt->fetch()) {
+        $_SESSION['errors'] = ['You already have an active appointment at this time.'];
+        redirect('../appointments.php');
+    }
+
     $stmt = db()->prepare('SELECT appointment_id FROM appointments WHERE doctor_id = ? AND appointment_date = ? AND appointment_time = ? LIMIT 1');
     $stmt->execute([$doctor_id, $appointment_date, $appointment_time]);
     if ($stmt->fetch()) {
@@ -74,22 +82,27 @@ try {
         redirect('../appointments.php');
     }
 
-    $stmt = db()->prepare(
+    $pdo = db();
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare(
         'INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, reason, status, doctor_notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, NOW())'
     );
     $stmt->execute([$user_id, $doctor_id, $appointment_date, $appointment_time, $reason, 'Pending', '']);
+    $appointmentId = (int)$pdo->lastInsertId();
 
-    create_notification(
-        $doctor_id,
+    create_event_notification(
+        $pdo, $doctor_id,
         'New appointment request',
-        'A patient has requested an appointment on ' . $appointment_date . ' at ' . $appointment_time . '.',
-        'appointment'
+        'A patient has requested appointment #' . $appointmentId . ' on ' . $appointment_date . ' at ' . $appointment_time . '.',
+        'appointment', 'appointment:' . $appointmentId . ':booked', 'appointments.php'
     );
+    $pdo->commit();
 
     $_SESSION['success'] = 'Appointment request submitted successfully.';
     redirect('../appointments.php');
 } catch (PDOException $e) {
+    if (isset($pdo) && $pdo->inTransaction()) { $pdo->rollBack(); }
     $_SESSION['errors'] = ['Unable to book the appointment. Please try again later.'];
     redirect('../appointments.php');
 }

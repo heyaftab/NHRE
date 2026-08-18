@@ -112,9 +112,9 @@ if ($role === 'Pharmacist') {
 
     function makeRow(index) {
       var row = document.createElement('div');
-      row.className = 'row g-2 rx-item-row mb-2';
+      row.className = 'row g-2 rx-item-row mb-3 p-2 border rounded';
       row.innerHTML =
-        '<div class="col-md-4">' +
+        '<div class="col-md-4"><label class="form-label small">Medicine</label>' +
           '<select class="form-select" name="medicine_id[]" required>' +
             '<option value="">Select medicine</option>' +
             '<?php foreach ($medicines as $m): ?>' +
@@ -122,11 +122,11 @@ if ($role === 'Pharmacist') {
             '<?php endforeach; ?>' +
           '</select>' +
         '</div>' +
-        '<div class="col-md-1"><input type="number" class="form-control" name="quantity[]" placeholder="Qty" min="0.01" max="10000" step="any" required></div>' +
-        '<div class="col-md-2"><input type="text" class="form-control" name="dosage[]" placeholder="Dosage" maxlength="100" required></div>' +
-        '<div class="col-md-2"><input type="text" class="form-control" name="frequency[]" placeholder="Frequency" maxlength="100" required></div>' +
-        '<div class="col-md-1"><input type="number" class="form-control" name="duration_days[]" placeholder="Days" min="1" max="365"></div>' +
-        '<div class="col-md-2"><input type="text" class="form-control" name="instructions[]" placeholder="Instructions" maxlength="500"></div>';
+        '<div class="col-md-2"><label class="form-label small">Quantity</label><input type="number" class="form-control" name="quantity[]" placeholder="Qty" min="0.01" max="10000" step="any" required></div>' +
+        '<div class="col-md-2"><label class="form-label small">Dosage</label><input type="text" class="form-control" name="dosage[]" placeholder="e.g. 500 mg" maxlength="100" required></div>' +
+        '<div class="col-md-2"><label class="form-label small">Frequency</label><input type="text" class="form-control" name="frequency[]" placeholder="e.g. twice daily" maxlength="100" required></div>' +
+        '<div class="col-md-2"><label class="form-label small">Duration</label><input type="number" class="form-control" name="duration_days[]" placeholder="Days" min="1" max="365"></div>' +
+        '<div class="col-md-12"><label class="form-label small">Instructions</label><div class="input-group"><input type="text" class="form-control" name="instructions[]" placeholder="Before/after food or other instructions" maxlength="500"><button type="button" class="btn btn-outline-danger remove-rx-item">Remove medicine</button></div></div>';
       return row;
     }
 
@@ -140,6 +140,12 @@ if ($role === 'Pharmacist') {
     addBtn.addEventListener('click', function (e) {
       e.preventDefault();
       document.getElementById('rxItems').appendChild(makeRow(Date.now()));
+    });
+    document.getElementById('rxItems').addEventListener('click', function (e) {
+      if (!e.target.closest('.remove-rx-item')) return;
+      var item = e.target.closest('.rx-item-row');
+      if (document.querySelectorAll('.rx-item-row').length > 1) item.remove();
+      else item.querySelectorAll('input, select').forEach(function (field) { field.value = ''; });
     });
   });
 </script>
@@ -253,7 +259,7 @@ if ($role === 'Pharmacist') {
                       <?php if ($role === 'Pharmacist'): ?><th>Doctor</th><?php endif; ?>
                       <th>Issued</th>
                       <th>Valid until</th>
-                      <th>Status</th>
+                      <?php if ($role !== 'Patient'): ?><th>Status</th><?php endif; ?>
                       <th></th>
                     </tr>
                   </thead>
@@ -265,7 +271,7 @@ if ($role === 'Pharmacist') {
                         <?php if ($role === 'Pharmacist'): ?><td><?= e($prescription['doctor_name']) ?></td><?php endif; ?>
                         <td><?= e(date('j M Y', strtotime($prescription['created_at']))) ?></td>
                         <td><?= e(date('j M Y', strtotime($prescription['expires_at']))) ?></td>
-                        <td><?= pharmacy_status_badge((string)$prescription['status']) ?></td>
+                        <?php if ($role !== 'Patient'): ?><td><?= pharmacy_status_badge((string)$prescription['status']) ?></td><?php endif; ?>
                         <td class="text-end">
                           <a href="prescription_view.php?id=<?= (int)$prescription['id'] ?>" class="btn btn-sm btn-solid-nhre">
                             <i class="fa-solid fa-eye"></i> View

@@ -127,9 +127,61 @@ Use the **Demo accounts** table on `login.php` to fill the sign-in form quickly.
 | Hospital Admin | `admin@nhre.gov` | `Admin123!` |
 | System Admin | `sysadmin@nhre.gov` | `SysAdmin123!` |
 
+### Specific demo doctor login
+
+Every seeded doctor uses the same demo password. Replace the number with any value from `001` to `100`:
+
+`doctor001@nhre.dev` / `Doctor123!`
+
+| Demo doctor emails | Password |
+| --- | --- |
+| `doctor001@nhre.dev` through `doctor100@nhre.dev` | `Doctor123!` |
+
+Open the Appointments page after logging in as a doctor to approve, reject, complete, and add notes to appointments assigned to that doctor. The initial seeded appointment set includes requests assigned across the first six demo doctors.
+
+### Demo patients and medical records
+
+The login page now seeds 25 demo patients. Patient A is `patient@nhre.gov` / `Patient123!`; the other accounts are `patient002@nhre.demo` through `patient025@nhre.demo`, all with password `Patient123!`. Each has a permanent `NHRE-P-######` identifier and a demo allergy/medical-record entry. Log in as any demo patient and open **Medical Records** or **Allergies** in the sidebar.
+
+| Demo patient | Email | Password |
+| --- | --- | --- |
+| Patient A | `patient@nhre.gov` | `Patient123!` |
+| Patient 002 | `patient002@nhre.demo` | `Patient123!` |
+| Patient 003 | `patient003@nhre.demo` | `Patient123!` |
+| Patient 004 | `patient004@nhre.demo` | `Patient123!` |
+| Patient 005 | `patient005@nhre.demo` | `Patient123!` |
+| Patient 006 | `patient006@nhre.demo` | `Patient123!` |
+| Patient 007 | `patient007@nhre.demo` | `Patient123!` |
+| Patient 008 | `patient008@nhre.demo` | `Patient123!` |
+| Patient 009 | `patient009@nhre.demo` | `Patient123!` |
+| Patient 010 | `patient010@nhre.demo` | `Patient123!` |
+| Patient 011 | `patient011@nhre.demo` | `Patient123!` |
+| Patient 012 | `patient012@nhre.demo` | `Patient123!` |
+| Patient 013 | `patient013@nhre.demo` | `Patient123!` |
+| Patient 014 | `patient014@nhre.demo` | `Patient123!` |
+| Patient 015 | `patient015@nhre.demo` | `Patient123!` |
+| Patient 016 | `patient016@nhre.demo` | `Patient123!` |
+| Patient 017 | `patient017@nhre.demo` | `Patient123!` |
+| Patient 018 | `patient018@nhre.demo` | `Patient123!` |
+| Patient 019 | `patient019@nhre.demo` | `Patient123!` |
+| Patient 020 | `patient020@nhre.demo` | `Patient123!` |
+| Patient 021 | `patient021@nhre.demo` | `Patient123!` |
+| Patient 022 | `patient022@nhre.demo` | `Patient123!` |
+| Patient 023 | `patient023@nhre.demo` | `Patient123!` |
+| Patient 024 | `patient024@nhre.demo` | `Patient123!` |
+| Patient 025 | `patient025@nhre.demo` | `Patient123!` |
+
 The login-page cards show the saved profile picture for each demo account. If an account has not uploaded a photo, NHRE displays a stable cartoon avatar instead.
 
 Do not retain demo credentials in any deployed environment.
+
+## Demo seed and clinical additions
+
+Opening the Appointments workspace idempotently prepares a Bangladesh-oriented directory of **at least 100 DEMO doctor accounts** (`doctor001@nhre.dev` through `doctor100@nhre.dev`, password `Doctor123!`). These accounts are fictional demonstration data only. Patient self-registration receives one persistent NHRE account number (`NHRE-########`) at creation.
+
+The clinical workspaces are available at `medical_records.php`, `allergies.php`, and `medical_documents.php`. Medical-document uploads accept server-verified PDF, JPEG, or PNG files up to 5 MB, use randomized filenames in `uploads/private_documents`, and can only be downloaded through the authorization-checked endpoint. A doctor must have active patient consent before viewing or verifying a patient document.
+
+After importing an earlier schema, open any clinical or appointment workspace once to apply the non-destructive runtime upgrades. For new installations, `database/nhre.sql` includes the added tables and notification/appointment fields.
 
 ## Configuration
 
