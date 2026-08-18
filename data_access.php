@@ -2,6 +2,8 @@
 require_once __DIR__ . '/auth/auth_check.php';
 require_role(['Patient']);
 ensure_access_tables_exists();
+ensure_doctor_profile_columns();
+ensure_doctor_catalog_tables();
 
 $fullname = $_SESSION['fullname'] ?? 'NHRE User';
 $email = $_SESSION['email'] ?? '';
@@ -85,9 +87,11 @@ if (isset($_GET['approve']) && ctype_digit((string)$_GET['approve'])) {
 $doctors = [];
 try {
     $stmt = db()->prepare(
-        'SELECT id, fullname, COALESCE(NULLIF(hospital_name, ""), h.name, "Independent practice") AS organization
+        'SELECT u.id, u.fullname, COALESCE(NULLIF(u.specialization, ""), s.name, "General Medicine") AS specialization,
+                COALESCE(NULLIF(u.hospital_name, ""), h.name, "Independent practice") AS organization
          FROM users u
          LEFT JOIN hospitals h ON h.id = u.hospital_id
+         LEFT JOIN specializations s ON s.id = u.specialization_id
          WHERE u.role = ? AND u.id != ?
          ORDER BY u.fullname ASC'
     );
