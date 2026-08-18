@@ -2,6 +2,9 @@
 require_once __DIR__ . '/auth/auth_check.php';
 require_role(['Doctor', 'Lab Technician', 'Pharmacist']);
 ensure_access_tables_exists();
+ensure_clinical_tables();
+require_once __DIR__ . '/includes/pharmacy_functions.php';
+ensure_pharmacy_tables();
 
 $providerId = (int)($_SESSION['user_id'] ?? 0);
 $patientId = (int)($_GET['patient'] ?? 0);
@@ -29,6 +32,15 @@ if (!$patient) {
 }
 
 $recordTypes = array_values(array_filter(array_map('trim', explode(',', $access['record_types']))));
+$canSee = static fn(string $type): bool => in_array($type, $recordTypes, true);
+$history = $allergies = $prescriptions = $documents = $labs = [];
+try {
+    if ($canSee('Medical History')) { $s=db()->prepare('SELECT a.appointment_id,a.appointment_date,a.appointment_time,a.reason,a.status,a.doctor_notes,d.fullname doctor_name FROM appointments a JOIN users d ON d.id=a.doctor_id WHERE a.patient_id=? AND a.status="Completed" ORDER BY a.appointment_date DESC');$s->execute([$patientId]);$history=$s->fetchAll(); }
+    if ($canSee('Allergies')) { $s=db()->prepare('SELECT name,allergy_type,reaction_text,severity FROM allergies WHERE patient_id=? AND is_active=1 ORDER BY severity DESC');$s->execute([$patientId]);$allergies=$s->fetchAll(); }
+    if ($canSee('Prescriptions')) { $s=db()->prepare('SELECT p.id,p.prescription_no,p.created_at,d.fullname doctor_name FROM prescriptions p JOIN users d ON d.id=p.doctor_id WHERE p.patient_id=? ORDER BY p.created_at DESC');$s->execute([$patientId]);$prescriptions=$s->fetchAll(); }
+    if ($canSee('Medical Documents')) { $s=db()->prepare('SELECT id,original_name,category,verification_status,created_at FROM medical_documents WHERE patient_id=? ORDER BY created_at DESC');$s->execute([$patientId]);$documents=$s->fetchAll(); }
+    if ($canSee('Lab Reports')) { $s=db()->prepare('SELECT b.id,b.booking_date,b.status,t.name test_name,t.place FROM medical_test_bookings b JOIN medical_tests t ON t.id=b.test_id WHERE b.user_id=? ORDER BY b.booking_date DESC');$s->execute([$patientId]);$labs=$s->fetchAll(); }
+} catch (PDOException $e) {}
 $loggedAccess = $_SESSION['logged_access'][$patientId] ?? false;
 
 if (!$loggedAccess) {
@@ -132,6 +144,14 @@ $errors = session_pull('errors', []);
             </p>
           </article>
         </div>
+      </div>
+
+      <div class="row g-4 mt-1">
+        <?php if ($canSee('Medical History')): ?><div class="col-12"><article class="dashboard-card"><h2 class="fs-5">Medical History — Completed Consultations</h2><?php if($history): ?><div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Doctor</th><th>Reason</th><th>Clinical note</th></tr></thead><tbody><?php foreach($history as $item): ?><tr><td><?=e($item['appointment_date'])?></td><td><?=e($item['doctor_name'])?></td><td><?=e($item['reason'])?></td><td><?=e($item['doctor_notes']?:'—')?></td></tr><?php endforeach;?></tbody></table></div><?php else:?><p class="text-muted mb-0">No completed consultations recorded.</p><?php endif;?></article></div><?php endif;?>
+        <?php if ($canSee('Allergies')): ?><div class="col-md-6"><article class="dashboard-card"><h2 class="fs-5">Allergies</h2><?php foreach($allergies as $item): ?><p><strong><?=e($item['name'])?></strong> — <?=e($item['severity'])?><?= $item['reaction_text']?' ('.e($item['reaction_text']).')':''?></p><?php endforeach;?><?php if(!$allergies):?><p class="text-muted mb-0">No active allergies recorded.</p><?php endif;?></article></div><?php endif;?>
+        <?php if ($canSee('Prescriptions')): ?><div class="col-md-6"><article class="dashboard-card"><h2 class="fs-5">Prescriptions</h2><?php foreach($prescriptions as $item): ?><p><a href="prescription_view.php?id=<?=(int)$item['id']?>"><?=e($item['prescription_no'])?></a> — <?=e($item['doctor_name'])?></p><?php endforeach;?><?php if(!$prescriptions):?><p class="text-muted mb-0">No prescriptions recorded.</p><?php endif;?></article></div><?php endif;?>
+        <?php if ($canSee('Lab Reports')): ?><div class="col-md-6"><article class="dashboard-card"><h2 class="fs-5">Lab Reports</h2><?php foreach($labs as $item): ?><p><strong><?=e($item['test_name'])?></strong> — <?=e($item['status'])?> (<?=e($item['booking_date'])?>)</p><?php endforeach;?><?php if(!$labs):?><p class="text-muted mb-0">No lab reports recorded.</p><?php endif;?></article></div><?php endif;?>
+        <?php if ($canSee('Medical Documents')): ?><div class="col-md-6"><article class="dashboard-card"><h2 class="fs-5">Medical Documents</h2><?php foreach($documents as $item): ?><p><a href="auth/document_download.php?id=<?=(int)$item['id']?>"><?=e($item['original_name'])?></a> — <?=e($item['verification_status'])?></p><?php endforeach;?><?php if(!$documents):?><p class="text-muted mb-0">No documents recorded.</p><?php endif;?></article></div><?php endif;?>
       </div>
     </section>
   </main>

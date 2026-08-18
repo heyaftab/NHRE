@@ -107,7 +107,7 @@ $grantedDb = ($grantedDate !== false && $grantedDate > $today) ? $grantedDate->f
 try {
     $stmt = db()->prepare(
         'SELECT id FROM access_permissions
-         WHERE patient_id = ? AND provider_id = ? AND status = \'Active\'
+         WHERE patient_id = ? AND provider_id = ? AND status IN (\'Active\', \'Requested\', \'Approved\')
          ORDER BY id DESC LIMIT 1'
     );
     $stmt->execute([$patientId, $providerId]);
@@ -116,7 +116,7 @@ try {
     if ($existing) {
         $stmt = db()->prepare(
             'UPDATE access_permissions
-             SET record_types = ?, expires_at = ?, granted_at = ?
+             SET record_types = ?, expires_at = ?, granted_at = ?, status = \'Active\'
              WHERE id = ?'
         );
         $stmt->execute([$recordTypesList, $expiresDb, $grantedDb, (int)$existing['id']]);
@@ -129,12 +129,6 @@ try {
     }
 
     if ($providerRole === 'Doctor') {
-        $stmt = db()->prepare(
-            'UPDATE access_permissions SET status = \'Approved\'
-             WHERE patient_id = ? AND provider_id = ? AND status = \'Requested\''
-        );
-        $stmt->execute([$patientId, $providerId]);
-
         create_notification(
             $providerId,
             'Medical record access granted',

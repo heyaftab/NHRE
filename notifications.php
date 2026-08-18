@@ -8,7 +8,8 @@ $errors = session_pull('errors', []);
 $success = session_pull('success');
 
 try {
-    $stmt = db()->prepare('SELECT id, title, message, created_at, is_read, notification_type FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
+    ensure_clinical_tables();
+    $stmt = db()->prepare('SELECT id, title, message, created_at, is_read, notification_type, related_url FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
     $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
     $notifications = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -102,7 +103,7 @@ try {
             <?php if ($notifications): ?>
               <div class="list-group mt-3">
                 <?php foreach ($notifications as $notification): ?>
-                  <div class="list-group-item d-flex justify-content-between align-items-start">
+                  <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-start" href="notification_open.php?id=<?= (int)$notification['id'] ?>">
                     <div>
                       <div class="fw-semibold"><?= e($notification['title']) ?></div>
                       <div class="text-muted small"><?= e($notification['message']) ?></div>
@@ -111,7 +112,7 @@ try {
                     <span class="badge rounded-pill <?= (int)$notification['is_read'] ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis' ?>">
                       <?= (int)$notification['is_read'] ? 'Read' : 'New' ?>
                     </span>
-                  </div>
+                  </a>
                 <?php endforeach; ?>
               </div>
             <?php else: ?>

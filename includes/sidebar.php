@@ -21,26 +21,26 @@ $sidebarLinks = [
 
 if ($sidebarRole === 'Patient') {
     $sidebarLinks = array_merge($sidebarLinks, [
-        ['coming_soon.php?feature=medical-records', 'fa-notes-medical', 'Medical Records', true],
+        ['medical_records.php', 'fa-notes-medical', 'Medical Records'],
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
         ['prescriptions.php', 'fa-prescription', 'Prescriptions'],
         ['pharmacy.php', 'fa-pills', 'Pharmacy'],
         ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
         ['vaccination.php', 'fa-syringe', 'Vaccinations'],
-        ['coming_soon.php?feature=allergies', 'fa-triangle-exclamation', 'Allergies', true],
+        ['allergies.php', 'fa-triangle-exclamation', 'Allergies'],
         ['blood_donation.php', 'fa-droplet', 'Blood Information'],
-        ['coming_soon.php?feature=medical-documents', 'fa-folder-open', 'Medical Documents', true],
+        ['medical_documents.php', 'fa-folder-open', 'Medical Documents'],
         ['data_access.php', 'fa-shield-halved', 'Data Access'],
     ]);
 } elseif ($sidebarRole === 'Doctor') {
     $sidebarLinks = array_merge($sidebarLinks, [
-        ['coming_soon.php?feature=patients', 'fa-user-group', 'My Patients', true],
+        ['my_patients.php', 'fa-user-group', 'My Patients'],
         ['patient_search.php', 'fa-magnifying-glass', 'Patient Search'],
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
-        ['coming_soon.php?feature=medical-records', 'fa-notes-medical', 'Medical Records', true],
+        ['medical_records.php', 'fa-notes-medical', 'Medical Records'],
         ['prescriptions.php', 'fa-pills', 'Prescriptions'],
         ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
-        ['coming_soon.php?feature=medical-documents', 'fa-folder-open', 'Medical Documents', true],
+        ['medical_documents.php', 'fa-folder-open', 'Medical Documents'],
         ['access_requests.php', 'fa-shield-halved', 'Access Requests'],
     ]);
 } elseif ($sidebarRole === 'Lab Technician') {
@@ -92,7 +92,7 @@ if ($sidebarRole === 'Patient') {
 }
 
 $sidebarLinks[] = ['notifications.php', 'fa-bell', 'Notifications'];
-$sidebarLinks[] = ['coming_soon.php?feature=settings', 'fa-gear', 'Settings', true];
+$sidebarLinks[] = [in_array($sidebarRole, ['Patient', 'Doctor'], true) ? 'settings.php' : 'coming_soon.php?feature=settings', 'fa-gear', 'Settings', !in_array($sidebarRole, ['Patient', 'Doctor'], true)];
 $sidebarLinks[] = ['help_support.php', 'fa-circle-question', 'Help & Support'];
 ?>
 <button class="sidebar-toggle" type="button" aria-label="Open navigation" aria-controls="nhreSidebar" aria-expanded="false">

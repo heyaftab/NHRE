@@ -288,6 +288,16 @@ try {
       <?php endif; ?>
 
       <?php if ($role === 'Patient'): ?>
+        <article class="dashboard-card mt-4" id="current-appointments">
+          <div class="d-flex align-items-center justify-content-between gap-3"><div><div class="dashboard-card-icon"><i class="fa-solid fa-calendar-day"></i></div><h2>Ongoing / Current Appointments</h2><p class="text-muted mb-0">Approved, pending, and upcoming care appears here before the doctor directory.</p></div><a href="#my-appointments" class="btn btn-outline-nhre">View all appointments</a></div>
+          <div class="row g-3 mt-1">
+            <?php $currentAppointments = array_values(array_filter($appointments, static fn(array $a): bool => in_array($a['status'], ['Pending', 'Approved'], true) || $a['appointment_date'] >= date('Y-m-d'))); $currentAppointments = array_slice($currentAppointments, 0, 4); ?>
+            <?php foreach ($currentAppointments as $appointment): ?>
+              <div class="col-md-6 col-xl-3"><div class="border rounded p-3 h-100"><strong><?= e($appointment['doctor_name']) ?></strong><div class="small text-muted">#<?= e($appointment['appointment_id']) ?> · <?= e($appointment['appointment_date']) ?> <?= e(substr($appointment['appointment_time'], 0, 5)) ?></div><span class="badge mt-2 <?= $appointment['status'] === 'Approved' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= e($appointment['status']) ?></span><div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="#my-appointments">View</a></div></div></div>
+            <?php endforeach; ?>
+            <?php if (!$currentAppointments): ?><div class="col-12 text-muted">No current appointments. Choose a doctor below to request care.</div><?php endif; ?>
+          </div>
+        </article>
         <div class="row g-4 mt-3">
           <div class="col-lg-5">
             <article class="dashboard-card">
@@ -580,7 +590,7 @@ try {
 
         <div class="row g-4 mt-3">
           <div class="col-12">
-            <article class="dashboard-card">
+            <article class="dashboard-card" id="my-appointments">
               <div class="dashboard-card-icon"><i class="fa-solid fa-clock"></i></div>
               <h2>My appointments</h2>
               <div class="table-responsive mt-3">
