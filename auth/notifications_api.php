@@ -8,6 +8,8 @@ header('Content-Type: application/json; charset=utf-8');
 
 $user_id = (int)$_SESSION['user_id'];
 
+ensure_notification_links_column();
+
 try {
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!csrf_check($_POST['_csrf'] ?? null)) {
@@ -36,7 +38,7 @@ try {
     $unread = (int)$stmt->fetchColumn();
 
     $stmt = db()->prepare(
-        'SELECT id, title, message, notification_type, created_at, is_read
+        'SELECT id, title, message, notification_type, target_path, created_at, is_read
          FROM notifications
          WHERE user_id = ?
          ORDER BY created_at DESC
@@ -44,6 +46,10 @@ try {
     );
     $stmt->execute([$user_id]);
     $notifications = $stmt->fetchAll();
+    foreach ($notifications as &$notification) {
+        $notification['url'] = 'auth/notification_open.php?id=' . (int)$notification['id'];
+    }
+    unset($notification);
 
     echo json_encode([
         'ok' => true,

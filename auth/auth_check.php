@@ -185,14 +185,50 @@ function unread_notification_count(int $user_id): int
     }
 }
 
+function ensure_notification_links_column(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    $checked = true;
+
+    try {
+        $column = db()->query("SHOW COLUMNS FROM notifications LIKE 'target_path'")->fetch();
+        if (!$column) {
+            db()->exec('ALTER TABLE notifications ADD COLUMN target_path VARCHAR(255) NULL AFTER notification_type');
+        }
+    } catch (PDOException $e) {
+    }
+}
+
+/** Return a page that the given role is permitted to open for a notification type. */
+function notification_destination(string $type, string $role): string
+{
+    $type = strtolower(trim($type));
+    return match ($type) {
+        'appointment' => in_array($role, ['Patient', 'Doctor', 'Hospital Admin', 'System Admin'], true) ? 'appointments.php' : 'dashboard.php',
+        'medical_test' => in_array($role, ['Patient', 'Doctor', 'Lab Technician', 'Hospital Admin', 'System Admin'], true) ? 'medical_tests.php' : 'dashboard.php',
+        'vaccination' => in_array($role, ['Patient', 'Lab Technician'], true) ? 'vaccination.php' : 'dashboard.php',
+        'pharmacy' => in_array($role, ['Patient', 'Pharmacist'], true) ? 'pharmacy.php' : 'dashboard.php',
+        'prescription' => in_array($role, ['Patient', 'Doctor', 'Pharmacist'], true) ? 'prescriptions.php' : 'dashboard.php',
+        'access' => $role === 'Patient' ? 'data_access.php' : ($role === 'Doctor' ? 'access_requests.php' : 'dashboard.php'),
+        default => 'dashboard.php',
+    };
+}
+
 function create_notification(int $user_id, string $title, string $message, string $type = 'general'): void
 {
     try {
+        ensure_notification_links_column();
+        $roleStmt = db()->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
+        $roleStmt->execute([$user_id]);
+        $targetPath = notification_destination($type, (string)$roleStmt->fetchColumn());
         $stmt = db()->prepare(
-            'INSERT INTO notifications (user_id, title, message, notification_type)
-             VALUES (?, ?, ?, ?)'
+            'INSERT INTO notifications (user_id, title, message, notification_type, target_path)
+             VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$user_id, $title, $message, $type]);
+        $stmt->execute([$user_id, $title, $message, $type, $targetPath]);
     } catch (PDOException $e) {
     }
 }
@@ -547,6 +583,7 @@ function ensure_doctor_catalog_tables(): void
 function ensure_demo_accounts(): void
 {
     $accounts = [
+        ['Demo Patient',          '0000000001', 'patient@nhre.gov', '+8801000000001', 'Patient123!', 'Patient'],
         ['Hospital Administrator', '0000000002', 'admin@nhre.gov', '+8801000000002', 'Admin123!', 'Hospital Admin'],
         ['System Administrator',   '0000000003', 'sysadmin@nhre.gov', '+8801000000003', 'SysAdmin123!', 'System Admin'],
         ['Demo Pharmacist',        '0000000004', 'pharmacist@nhre.gov', '+8801000000004', 'Pharmacist123!', 'Pharmacist'],
@@ -683,6 +720,7 @@ function render_rating_stars(?float $rating): string
 
 function ensure_medical_test_tables_exists(): void
 {
+    ensure_vaccination_center_tables();
     db()->exec(
         'CREATE TABLE IF NOT EXISTS `medical_tests` (
           `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -695,6 +733,7 @@ function ensure_medical_test_tables_exists(): void
           `result_time`       VARCHAR(60) NOT NULL,
           `availability`      TINYINT(1) NOT NULL DEFAULT 1,
           `home_collection`   TINYINT(1) NOT NULL DEFAULT 0,
+          `center_id`         INT UNSIGNED NULL,
           `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (`id`),
           KEY `idx_medical_tests_place` (`place`),
@@ -746,6 +785,26 @@ function ensure_medical_test_tables_exists(): void
             $stmt->execute($row);
         }
     }
+
+    try {
+        db()->exec('UPDATE medical_tests mt JOIN vaccination_centers vc ON vc.district = mt.place SET mt.center_id = vc.id WHERE mt.center_id IS NULL');
+        $patientId = (int)db()->query("SELECT id FROM users WHERE email = 'patient@nhre.gov' AND role = 'Patient' LIMIT 1")->fetchColumn();
+        if ($patientId > 0) {
+            $seedBooking = db()->prepare('INSERT INTO medical_test_bookings (test_id, user_id, booking_date, booking_time, status, result_notes, created_at, updated_at) SELECT id, ?, ?, ?, ?, ?, NOW(), NOW() FROM medical_tests WHERE center_id IS NOT NULL ORDER BY id LIMIT 1');
+            $statusCount = db()->prepare('SELECT COUNT(*) FROM medical_test_bookings WHERE user_id = ? AND status = ?');
+            foreach ([
+                ['Pending', '+2 days', '10:30:00', 'Demo pathology booking awaiting review.'],
+                ['Completed', '-2 days', '11:00:00', 'Demo CBC result: values are within the expected range.'],
+                ['Cancelled', '-5 days', '09:00:00', 'Demo cancelled request for test-history review.'],
+            ] as [$status, $dateOffset, $time, $notes]) {
+                $statusCount->execute([$patientId, $status]);
+                if ((int)$statusCount->fetchColumn() === 0) {
+                    $seedBooking->execute([$patientId, date('Y-m-d', strtotime($dateOffset)), $time, $status, $notes]);
+                }
+            }
+        }
+    } catch (PDOException $e) {
+    }
 }
 
 function ensure_pharmacy_requests_table_exists(): void
@@ -774,6 +833,7 @@ function vaccination_names(): array
 
 function ensure_vaccination_center_tables(): void
 {
+    ensure_demo_accounts();
     db()->exec(
         'CREATE TABLE IF NOT EXISTS `vaccination_centers` (
           `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -801,6 +861,44 @@ function ensure_vaccination_center_tables(): void
           KEY `idx_vaccine_prices_vaccine` (`vaccine_name`),
           CONSTRAINT `fk_vaccination_center_prices_center`
             FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    try {
+        $hasCenter = db()->query("SHOW COLUMNS FROM medical_tests LIKE 'center_id'")->fetch();
+        if (!$hasCenter) {
+            db()->exec('ALTER TABLE medical_tests ADD COLUMN center_id INT UNSIGNED NULL AFTER home_collection');
+        }
+        db()->exec('UPDATE medical_tests mt JOIN vaccination_centers vc ON vc.district = mt.place SET mt.center_id = vc.id WHERE mt.center_id IS NULL');
+    } catch (PDOException $e) {
+    }
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `vaccination_bookings` (
+          `id`              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `user_id`         INT UNSIGNED NOT NULL,
+          `vaccine_name`    VARCHAR(100) NOT NULL,
+          `dose_number`     TINYINT UNSIGNED NOT NULL DEFAULT 1,
+          `center_id`       INT UNSIGNED NULL,
+          `booking_date`    DATE NOT NULL,
+          `booking_time`    TIME NULL,
+          `contact_phone`   VARCHAR(30) NOT NULL,
+          `notes`           TEXT NULL,
+          `status`          VARCHAR(30) NOT NULL DEFAULT \'Pending\',
+          `technician_id`   INT UNSIGNED NULL,
+          `status_notes`    TEXT NULL,
+          `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `updated_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          KEY `idx_vaccination_bookings_user` (`user_id`),
+          KEY `idx_vaccination_bookings_status` (`status`),
+          KEY `idx_vaccination_bookings_date` (`booking_date`),
+          CONSTRAINT `fk_vaccination_bookings_user`
+            FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_vaccination_bookings_center`
+            FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE SET NULL,
+          CONSTRAINT `fk_vaccination_bookings_technician`
+            FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
     );
 
@@ -921,6 +1019,72 @@ function ensure_vaccination_center_tables(): void
             }
         }
     }
+
+    db()->exec(
+        'CREATE TABLE IF NOT EXISTS `lab_technician_assignments` (
+          `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+          `technician_id` INT UNSIGNED NOT NULL,
+          `center_id` INT UNSIGNED NOT NULL,
+          `section_name` VARCHAR(120) NULL,
+          `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_technician_center_section` (`technician_id`, `center_id`, `section_name`),
+          KEY `idx_lab_assignments_technician` (`technician_id`),
+          CONSTRAINT `fk_lab_assignments_technician` FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_lab_assignments_center` FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;'
+    );
+
+    try {
+        $techStmt = db()->prepare("SELECT id FROM users WHERE email = 'lab@nhre.gov' AND role = 'Lab Technician' LIMIT 1");
+        $techStmt->execute();
+        $techId = (int)$techStmt->fetchColumn();
+        if ($techId > 0) {
+            /* The demo technician is intentionally assigned to every demo hospital.
+               Other technicians remain limited to rows explicitly assigned to them. */
+            $assignment = db()->prepare(
+                'INSERT INTO lab_technician_assignments (technician_id, center_id, section_name)
+                 SELECT ?, vc.id, NULL FROM vaccination_centers vc
+                 WHERE NOT EXISTS (
+                   SELECT 1 FROM lab_technician_assignments lta
+                   WHERE lta.technician_id = ? AND lta.center_id = vc.id AND lta.section_name IS NULL
+                 )'
+            );
+            $assignment->execute([$techId, $techId]);
+        }
+        $patientId = (int)db()->query("SELECT id FROM users WHERE email = 'patient@nhre.gov' AND role = 'Patient' LIMIT 1")->fetchColumn();
+        if ($patientId > 0) {
+            $seedBooking = db()->prepare('INSERT INTO vaccination_bookings (user_id, vaccine_name, dose_number, center_id, booking_date, booking_time, contact_phone, notes, status, created_at, updated_at) SELECT ?, ?, 1, id, ?, ?, ?, ?, ?, NOW(), NOW() FROM vaccination_centers WHERE name = ? LIMIT 1');
+            $statusCount = db()->prepare('SELECT COUNT(*) FROM vaccination_bookings WHERE user_id = ? AND status = ?');
+            foreach ([
+                ['Pending', 'Hepatitis B', '+3 days', '09:30:00', 'Demo vaccination booking for technician workflow.'],
+                ['Completed', 'Influenza', '-1 day', '10:00:00', 'Demo completed vaccination booking for technician workflow.'],
+            ] as [$status, $vaccine, $dateOffset, $time, $notes]) {
+                $statusCount->execute([$patientId, $status]);
+                if ((int)$statusCount->fetchColumn() === 0) {
+                    $seedBooking->execute([$patientId, $vaccine, date('Y-m-d', strtotime($dateOffset)), $time, '+8801000000001', $notes, $status, 'ICDC Hospital EPI Centre']);
+                }
+            }
+        }
+    } catch (PDOException $e) {
+    }
+}
+
+function technician_can_manage_center(int $technicianId, int $centerId, ?string $section = null): bool
+{
+    if ($technicianId <= 0 || $centerId <= 0) {
+        return false;
+    }
+    $sql = 'SELECT 1 FROM lab_technician_assignments WHERE technician_id = ? AND center_id = ?';
+    $params = [$technicianId, $centerId];
+    if ($section !== null && $section !== '') {
+        $sql .= ' AND (section_name IS NULL OR section_name = ?)';
+        $params[] = $section;
+    }
+    $sql .= ' LIMIT 1';
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    return (bool)$stmt->fetchColumn();
 }
 
 function ensure_access_tables_exists(): void

@@ -25,7 +25,7 @@ if ($sidebarRole === 'Patient') {
         ['appointments.php', 'fa-calendar-check', 'Appointments'],
         ['prescriptions.php', 'fa-prescription', 'Prescriptions'],
         ['pharmacy.php', 'fa-pills', 'Pharmacy'],
-        ['medical_tests.php', 'fa-flask-vial', 'Lab Reports'],
+        ['medical_tests.php', 'fa-flask-vial', 'Test Booking'],
         ['vaccination.php', 'fa-syringe', 'Vaccinations'],
         ['coming_soon.php?feature=allergies', 'fa-triangle-exclamation', 'Allergies', true],
         ['blood_donation.php', 'fa-droplet', 'Blood Information'],
@@ -45,10 +45,11 @@ if ($sidebarRole === 'Patient') {
     ]);
 } elseif ($sidebarRole === 'Lab Technician') {
     $sidebarLinks = array_merge($sidebarLinks, [
-        ['medical_tests.php', 'fa-flask-vial', 'Test Requests'],
-        ['coming_soon.php?feature=laboratory-reports', 'fa-file-medical', 'Laboratory Reports', true],
+        ['lab_test_requests.php', 'fa-flask-vial', 'Test Requests'],
+        ['vaccination.php', 'fa-syringe', 'Vaccination Bookings'],
+        ['laboratory_reports.php', 'fa-file-medical', 'Laboratory Reports'],
         ['patient_search.php', 'fa-magnifying-glass', 'Patient Search'],
-        ['coming_soon.php?feature=test-history', 'fa-clock-rotate-left', 'Test History', true],
+        ['test_history.php', 'fa-clock-rotate-left', 'Test History'],
     ]);
 } elseif ($sidebarRole === 'Pharmacist') {
     $sidebarLinks = array_merge($sidebarLinks, [

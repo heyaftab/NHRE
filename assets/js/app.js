@@ -1,4 +1,12 @@
 (() => {
+  /* ---------- Bootstrap modal placement ----------
+     Modals inside dashboard cards/tables can inherit a stacking context from
+     their container. Keeping them directly under <body> prevents a backdrop
+     from covering the page while the dialog is hidden behind it. */
+  document.querySelectorAll('.modal').forEach((modal) => {
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
+  });
+
   /* ---------- Authenticated sidebar ---------- */
   const sidebar = document.getElementById('nhreSidebar');
   if (sidebar) {
@@ -438,7 +446,7 @@
         .map((n) => {
           const key = notifCategory(n.notification_type);
           return `
-            <div class="notification-item${n.is_read ? '' : ' notification-item-unread'}">
+            <a href="${escapeHtml(n.url || 'notifications.php')}" class="notification-item${n.is_read ? '' : ' notification-item-unread'}">
               <div class="d-flex gap-2 align-items-start">
                 <span class="notif-type-icon t-${key}" aria-hidden="true"><i class="fa-solid fa-${NOTIF_ICONS[key]}"></i></span>
                 <div class="flex-grow-1">
@@ -447,7 +455,7 @@
                   <div class="notification-item-time">${escapeHtml(n.notification_type)} \u2022 ${timeAgo(n.created_at)}</div>
                 </div>
               </div>
-            </div>`;
+            </a>`;
         })
         .join('');
     };

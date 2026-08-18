@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `title`             VARCHAR(190) NOT NULL,
   `message`           TEXT         NOT NULL,
   `notification_type` VARCHAR(100) NOT NULL,
+  `target_path`       VARCHAR(255) NULL,
   `created_at`        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `is_read`           TINYINT(1)   NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
@@ -246,6 +247,7 @@ CREATE TABLE IF NOT EXISTS `medical_tests` (
   `result_time`       VARCHAR(60) NOT NULL,
   `availability`      TINYINT(1) NOT NULL DEFAULT 1,
   `home_collection`   TINYINT(1) NOT NULL DEFAULT 0,
+  `center_id`         INT UNSIGNED NULL,
   `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_medical_tests_place` (`place`),
@@ -319,6 +321,48 @@ CREATE TABLE IF NOT EXISTS `vaccination_center_prices` (
   KEY `idx_vaccine_prices_vaccine` (`vaccine_name`),
   CONSTRAINT `fk_vaccination_center_prices_center`
     FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Patient vaccination booking requests and Lab Technician workflow
+CREATE TABLE IF NOT EXISTS `vaccination_bookings` (
+  `id`              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`         INT UNSIGNED NOT NULL,
+  `vaccine_name`    VARCHAR(100) NOT NULL,
+  `dose_number`     TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  `center_id`       INT UNSIGNED NULL,
+  `booking_date`    DATE NOT NULL,
+  `booking_time`    TIME NULL,
+  `contact_phone`   VARCHAR(30) NOT NULL,
+  `notes`           TEXT NULL,
+  `status`          VARCHAR(30) NOT NULL DEFAULT 'Pending',
+  `technician_id`   INT UNSIGNED NULL,
+  `status_notes`    TEXT NULL,
+  `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_vaccination_bookings_user` (`user_id`),
+  KEY `idx_vaccination_bookings_status` (`status`),
+  KEY `idx_vaccination_bookings_date` (`booking_date`),
+  CONSTRAINT `fk_vaccination_bookings_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_vaccination_bookings_center`
+    FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vaccination_bookings_technician`
+    FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Hospital/section assignments restrict the requests a Lab Technician can manage.
+CREATE TABLE IF NOT EXISTS `lab_technician_assignments` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `technician_id`  INT UNSIGNED NOT NULL,
+  `center_id`      INT UNSIGNED NOT NULL,
+  `section_name`   VARCHAR(120) NULL,
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_technician_center_section` (`technician_id`, `center_id`, `section_name`),
+  KEY `idx_lab_assignments_technician` (`technician_id`),
+  CONSTRAINT `fk_lab_assignments_technician` FOREIGN KEY (`technician_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_lab_assignments_center` FOREIGN KEY (`center_id`) REFERENCES `vaccination_centers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------

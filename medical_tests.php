@@ -8,6 +8,10 @@ $role = $_SESSION['role'] ?? 'User';
 $errors = session_pull('errors', []);
 $success = session_pull('success');
 
+if ($role === 'Lab Technician' && basename((string)($_SERVER['PHP_SELF'] ?? '')) === 'medical_tests.php') {
+    redirect('lab_test_requests.php');
+}
+
 try {
     ensure_medical_test_tables_exists();
 } catch (PDOException $e) {
@@ -15,10 +19,14 @@ try {
 }
 
 $user_id = (int)($_SESSION['user_id'] ?? 0);
+$labView = in_array((string)($_GET['view'] ?? ''), ['reports', 'history'], true) ? (string)$_GET['view'] : 'requests';
 
 $min_price = trim((string)($_GET['min_price'] ?? ''));
 $max_price = trim((string)($_GET['max_price'] ?? ''));
 $place = trim((string)($_GET['place'] ?? ''));
+$division = trim((string)($_GET['division'] ?? ''));
+$district = trim((string)($_GET['district'] ?? ''));
+$hospitalId = (int)($_GET['hospital_id'] ?? 0);
 $test_type = trim((string)($_GET['test_type'] ?? ''));
 $result_time = trim((string)($_GET['result_time'] ?? ''));
 $availability = trim((string)($_GET['availability'] ?? ''));
@@ -43,9 +51,16 @@ if ($max_price !== '') {
     }
 }
 
-if ($place !== '') {
-    $where[] = 'place = ?';
-    $params[] = $place;
+if ($hospitalId > 0) {
+    $where[] = 'center_id = ?';
+    $params[] = $hospitalId;
+} elseif ($district !== '') {
+    $where[] = 'center_id IN (SELECT id FROM vaccination_centers WHERE division = ? AND district = ?)';
+    $params[] = $division;
+    $params[] = $district;
+} elseif ($division !== '') {
+    $where[] = 'center_id IN (SELECT id FROM vaccination_centers WHERE division = ?)';
+    $params[] = $division;
 }
 
 if ($test_type !== '') {
@@ -78,6 +93,10 @@ $stmt = db()->prepare($sql);
 $stmt->execute($params);
 $tests = $stmt->fetchAll();
 
+$hospitalDirectory = db()->query('SELECT id, name, district, division FROM vaccination_centers WHERE is_active = 1 ORDER BY division, district, name')->fetchAll();
+$labDivisions = array_values(array_unique(array_column($hospitalDirectory, 'division')));
+sort($labDivisions);
+
 $places = [];
 $types = [];
 $result_times = [];
@@ -105,14 +124,18 @@ $bookings = $stmt->fetchAll();
 
 $technician_view = ($role === 'Lab Technician');
 if ($technician_view) {
+    $labStatusClause = $labView === 'reports' ? " AND mtb.status = 'Completed'" : ($labView === 'history' ? " AND mtb.status IN ('Completed', 'Cancelled')" : '');
     $stmt = db()->prepare(
-        'SELECT mtb.id, mt.name AS test_name, mtb.booking_date, mtb.booking_time, mtb.status, u.fullname AS patient_name, mtb.result_file, mtb.result_notes
+        'SELECT DISTINCT mtb.id, mt.name AS test_name, mt.department, mtb.booking_date, mtb.booking_time, mtb.status, u.fullname AS patient_name, mtb.result_file, mtb.result_notes, vc.name AS hospital_name
          FROM medical_test_bookings mtb
          JOIN medical_tests mt ON mt.id = mtb.test_id
          JOIN users u ON u.id = mtb.user_id
+         JOIN lab_technician_assignments lta ON lta.center_id = mt.center_id AND lta.technician_id = ? AND (lta.section_name IS NULL OR lta.section_name = mt.department)
+         LEFT JOIN vaccination_centers vc ON vc.id = mt.center_id
+         WHERE 1 = 1' . $labStatusClause . '
          ORDER BY mtb.booking_date DESC, mtb.created_at DESC'
     );
-    $stmt->execute();
+    $stmt->execute([$user_id]);
     $technician_bookings = $stmt->fetchAll();
 } else {
     $technician_bookings = [];
@@ -128,7 +151,7 @@ if ($technician_view) {
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260818-18">
 <script>
   (function () {
     try {
@@ -166,9 +189,9 @@ if ($technician_view) {
     <section class="container">
       <div class="dashboard-hero glass-card">
         <div>
-          <span class="auth-kicker">Medical Tests Marketplace</span>
-          <h1>Book diagnostic tests for <?= e($fullname) ?></h1>
-          <p>Filter by pricing, location, test type, turnaround time, and book a diagnostic service directly from NHRE.</p>
+          <span class="auth-kicker"><?= $technician_view ? 'Lab Technician Workspace' : 'Medical Tests Marketplace' ?></span>
+          <h1><?= $technician_view ? 'Test Requests' : 'Book diagnostic tests for ' . e($fullname) ?></h1>
+          <p><?= $technician_view ? 'Review only the requests assigned to your authorized hospitals and laboratory sections.' : 'Filter by pricing, location, test type, turnaround time, and book a diagnostic service directly from NHRE.' ?></p>
         </div>
         <div class="dashboard-user-pill">
           <i class="fa-solid fa-flask-vial"></i>
@@ -194,6 +217,7 @@ if ($technician_view) {
         </div>
       <?php endif; ?>
 
+      <?php if (!$technician_view): ?>
       <div class="row g-4">
         <div class="col-lg-3">
           <article class="dashboard-card">
@@ -208,14 +232,10 @@ if ($technician_view) {
                 <label class="form-label">Max Price</label>
                 <input type="number" class="form-control" name="max_price" value="<?= e($max_price) ?>" min="0" step="1">
               </div>
-              <div class="mb-3">
-                <label class="form-label">Place</label>
-                <select class="form-select" name="place">
-                  <option value="">All Places</option>
-                  <?php foreach ($places as $place_option): ?>
-                    <option value="<?= e($place_option) ?>" <?= $place === $place_option ? 'selected' : '' ?>><?= e($place_option) ?></option>
-                  <?php endforeach; ?>
-                </select>
+              <div class="mb-3 lab-location-picker">
+                <label class="form-label">Division</label><select class="form-select js-division" name="division"><option value="">All divisions</option><?php foreach ($labDivisions as $option): ?><option value="<?= e($option) ?>" <?= $division === $option ? 'selected' : '' ?>><?= e($option) ?></option><?php endforeach; ?></select>
+                <label class="form-label mt-2">City / district</label><select class="form-select js-district" name="district" <?= $division === '' ? 'disabled' : '' ?>><option value="">All cities / districts</option></select>
+                <label class="form-label mt-2">Hospital</label><select class="form-select js-hospital" name="hospital_id" <?= $district === '' ? 'disabled' : '' ?>><option value="">All hospitals</option></select>
               </div>
               <div class="mb-3">
                 <label class="form-label">Test Type</label>
@@ -289,7 +309,7 @@ if ($technician_view) {
                     </div>
                   </article>
 
-                  <div class="modal fade" id="bookModal<?= (int)$test['id'] ?>" tabindex="-1" aria-hidden="true">
+                  <div class="modal fade vaccination-modal" id="bookModal<?= (int)$test['id'] ?>" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
                       <div class="modal-content">
                         <form method="post" action="auth/medical_test_process.php" enctype="multipart/form-data">
@@ -385,13 +405,14 @@ if ($technician_view) {
         </div>
       </section>
 
+      <?php endif; ?>
       <?php if ($technician_view): ?>
         <section class="mt-5">
           <div class="dashboard-hero glass-card">
             <div>
               <span class="auth-kicker">Lab Technician Management</span>
-              <h1>Manage test bookings</h1>
-              <p>Review patient bookings, update status, and upload results.</p>
+              <h1><?= $labView === 'reports' ? 'Laboratory Reports' : ($labView === 'history' ? 'Test History' : 'Manage test bookings') ?></h1>
+              <p><?= $labView === 'reports' ? 'Review completed test reports for your authorized sections.' : ($labView === 'history' ? 'Review completed and cancelled requests for your authorized sections.' : 'Review patient bookings, update status, and upload results.') ?></p>
             </div>
           </div>
 
@@ -402,6 +423,7 @@ if ($technician_view) {
                   <th>Patient</th>
                   <th>Test</th>
                   <th>Date</th>
+                  <th>Hospital / section</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -412,13 +434,14 @@ if ($technician_view) {
                     <td><?= e($booking['patient_name']) ?></td>
                     <td><?= e($booking['test_name']) ?></td>
                     <td><?= e($booking['booking_date']) ?></td>
+                    <td><?= e($booking['hospital_name'] ?: 'Unassigned') ?><br><small class="text-muted"><?= e($booking['department'] ?: 'General') ?></small></td>
                     <td><span class="badge bg-light text-dark"><?= e($booking['status']) ?></span></td>
                     <td>
                       <button class="btn btn-manage-booking btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#techModal<?= (int)$booking['id'] ?>">Manage</button>
                     </td>
                   </tr>
 
-                  <div class="modal fade" id="techModal<?= (int)$booking['id'] ?>" tabindex="-1" aria-hidden="true">
+                  <div class="modal fade vaccination-modal" id="techModal<?= (int)$booking['id'] ?>" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
                       <div class="modal-content">
                         <form method="post" action="auth/medical_test_process.php" enctype="multipart/form-data">
@@ -467,6 +490,21 @@ if ($technician_view) {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260811-8"></script>
+  <script>
+    (() => {
+      const hospitals = <?= json_encode($hospitalDirectory, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      document.querySelectorAll('.lab-location-picker').forEach((picker) => {
+        const div = picker.querySelector('.js-division'), dist = picker.querySelector('.js-district'), hospital = picker.querySelector('.js-hospital');
+        const reset = (select, label) => { select.replaceChildren(new Option(`All ${label}`, '', true, true)); select.disabled = true; };
+        const districtsForDivision = () => [...new Set(hospitals.filter(h => h.division === div.value).map(h => h.district))].sort();
+        const loadDistricts = (selected = '') => { reset(dist, 'cities / districts'); districtsForDivision().forEach(value => dist.add(new Option(value, value, value === selected, value === selected))); dist.disabled = !div.value; };
+        const loadHospitals = (selected = '') => { reset(hospital, 'hospitals'); hospitals.filter(h => h.division === div.value && h.district === dist.value).forEach(item => hospital.add(new Option(item.name, item.id, String(item.id) === String(selected), String(item.id) === String(selected)))); hospital.disabled = !dist.value; };
+        div.addEventListener('change', () => { loadDistricts(); reset(hospital, 'hospitals'); });
+        dist.addEventListener('change', () => loadHospitals());
+        if (div.value) { loadDistricts(<?= json_encode($district) ?>); if (dist.value) loadHospitals(<?= (int)$hospitalId ?>); } else { reset(dist, 'cities / districts'); reset(hospital, 'hospitals'); }
+      });
+    })();
+  </script>
+  <script src="assets/js/app.js?v=20260818-10"></script>
 </body>
 </html>
