@@ -9,14 +9,15 @@ NHRE is a PHP and MySQL healthcare portal prototype. It provides a public landin
 - Registration for Patient, Doctor, Pharmacist, and Lab Technician roles (Hospital Admin and System Admin are provisioned by administrators and cannot be self-registered)
 - Login sessions, CSRF protection, password hashing, failed-login throttling, and optional remember-me tokens
 - Profile management with optional profile-photo uploads (maximum 2 MB) and a choice of saved cartoon avatars
-- In-app notifications with an unread badge; opening the notification dropdown marks them as read, and a mark-all-read action is also available
+- In-app notifications with unread badges, high-contrast light/dark hover states, and secure click-through routing to the relevant authorized workspace
 - Shared responsive, collapsible sidebar navigation with role-specific links and unread-notification access
 - Patient-controlled data access: grant/revoke record access to doctors and hospitals, pending access requests, and an access history audit log
 - Doctor patient search (by name, NID, phone, email) with consent-gated access to authorized records
 - Appointment scheduling: patients can find doctors and book or cancel appointments; doctors can manage assigned appointments; Hospital Admins can oversee them
 - Doctor ratings & reviews: patients rate and review doctors (one review per patient, updatable), with star-based display and rating-aware featured-doctor/filter logic
-- Medical-test marketplace with filtering, bookings, lab-technician status updates, and result-file uploads
-- Vaccination schedule interface and patient-specific doctor-report viewing
+- Patient test-booking marketplace with Division → City/District → Hospital filtering, bookings, and result viewing
+- Vaccination cards with patient booking forms, Division → City/District → Hospital selection, and booking-status tracking
+- Lab Technician request management: separate Test Requests, Laboratory Reports, Test History, and Vaccination Bookings workspaces with hospital/section-scoped status updates
 - Pharmacy medicine catalogue and pharmacy-support request workflow
 - Blood donor registration, blood requests, donor directory, and donor eligibility tracking
 - Password reset links generated in the application for local development
@@ -115,7 +116,7 @@ Then visit [http://localhost:8000](http://localhost:8000).
 
 The normal route is to create an account at `register.php`. Passwords must contain at least eight characters, including uppercase, lowercase, numeric, and symbol characters.
 
-Use the **Demo accounts** table on `login.php` to fill the sign-in form quickly. Opening the login page automatically prepares the Hospital Admin, System Admin, Pharmacist, and Lab Technician demo accounts. The demo patient and doctor catalogue are seeded when the Appointments workspace is initialized.
+Use the **Demo accounts** table on `login.php` to fill the sign-in form quickly. The runtime demo setup prepares the Demo Patient, Lab Technician, and administrative accounts. It also seeds pending, completed, and cancelled test requests plus vaccination bookings for the Demo Patient, so each Lab Technician queue can be tested.
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -150,16 +151,16 @@ This prototype does not send email. After a valid email is submitted at `forgot_
 
 ## Data and role notes
 
-- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, and medical-test-booking tables. This includes `users`, `districts`, `specializations`, `hospitals`, `appointments`, `medical_tests`, and `medical_test_bookings`. Patient data-access tables (`access_permissions`, `access_logs`), `pharmacy_requests`, and doctor ratings/reviews (`doctor_ratings`) are also created.
+- The schema creates user, authentication, doctor-directory, blood-donation, notification, doctor-report, appointment, medical-test, vaccination-center, and booking tables. Technician-scoped workflows use `lab_technician_assignments`; vaccination requests use `vaccination_bookings`; notifications store a role-validated `target_path` for click-through navigation.
 - The application recognizes six roles: Patient, Doctor, Pharmacist, Lab Technician, Hospital Admin, and System Admin. Self-registration supports Patient, Doctor, Pharmacist, and Lab Technician only; Hospital Admin and System Admin demo accounts are provisioned automatically for local demonstration.
 - Profile pictures can be uploaded or selected from the Account Summary cartoon-avatar picker. Cartoon avatars are delivered by the DiceBear avatar service; a network connection is required for those SVGs to load.
 - The public footer links to dedicated About, Services, Resources, Contact, Privacy Policy, and Terms & Conditions pages. These informational pages are not shown in the authenticated navigation.
-- The authenticated sidebar is role-aware and only links to a role's existing workspaces or clearly labeled planned workspaces. Planned workspaces enforce their allowed roles on the server and do not expose patient records.
+- The authenticated sidebar is role-aware. Lab Technicians have distinct Test Requests, Laboratory Reports, Test History, Patient Search, and Vaccination Bookings pages; their test and vaccination queues are limited server-side to assigned hospitals and laboratory sections.
 - Patient data access: patients grant or revoke record access (Medical History, Lab Reports, Prescriptions, Vaccinations, Allergies, Medical Documents) to individual doctors or to hospitals. Doctors can request access, which appears as a pending request for the patient to approve or reject. `authorized_records.php` enforces an active, unexpired permission server-side and writes to the access log.
 - Hospital-only donor controls and appointment administration are shown conditionally in the interface; server-side role authorization should be strengthened before deployment.
 - The pharmacy catalogue is interface/demo data, but the pharmacy support-request form writes real rows to `pharmacy_requests`.
-- Vaccination schedules are currently static reference content. Doctor reports and notifications require records to be inserted into their respective database tables; there is no administrative creation interface for doctor reports yet.
-- Medical-test catalogue entries are seeded with demo data if the catalogue is empty. Lab result files are stored under `uploads/test_results/` and should be treated as untrusted uploads.
+- Patient vaccination cards create `vaccination_bookings` with a selected hospital and status. Lab Technicians can manage only bookings for their authorized hospitals; the demo technician is assigned to the demo hospital catalogue for local testing.
+- Medical-test catalogue entries and technician queue records are seeded with demo data. Lab result files are stored under `uploads/test_results/` and should be treated as untrusted uploads.
 
 ## Security checklist before deployment
 
@@ -179,7 +180,7 @@ Lint every PHP file:
 find . -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-For a manual smoke test, import the schema, register a user, log in, edit the profile, book and manage an appointment using the relevant roles, create a medical-test booking, register as a donor, submit a blood request, and test logout and password reset. For the data-access flow: log in as a patient, grant a doctor access and confirm the permission appears; log in as that doctor, search for the patient, open the authorized records, and confirm the access log records the view.
+For a manual smoke test, import the schema, log in as the Demo Patient and submit a test or vaccination booking using the cascading hospital selector. Then log in as the Demo Lab Technician and verify that Test Requests, Laboratory Reports, Test History, and Vaccination Bookings show only authorized records and allow status management. Also verify a notification opens its relevant authorized module.
 
 ## License
 
