@@ -6,10 +6,10 @@ $fullname = $_SESSION['fullname'] ?? 'NHRE User';
 $role = $_SESSION['role'] ?? 'User';
 $errors = session_pull('errors', []);
 $success = session_pull('success');
+ensure_notification_links_column();
 
 try {
-    ensure_clinical_tables();
-    $stmt = db()->prepare('SELECT id, title, message, created_at, is_read, notification_type, related_url FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
+    $stmt = db()->prepare('SELECT id, title, message, created_at, is_read, notification_type, target_path FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
     $stmt->execute([(int)($_SESSION['user_id'] ?? 0)]);
     $notifications = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -26,7 +26,7 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/styles.css?v=20260811-16">
+  <link rel="stylesheet" href="assets/css/styles.css?v=20260818-18">
 <script>
   (function () {
     try {
@@ -103,7 +103,7 @@ try {
             <?php if ($notifications): ?>
               <div class="list-group mt-3">
                 <?php foreach ($notifications as $notification): ?>
-                  <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-start" href="notification_open.php?id=<?= (int)$notification['id'] ?>">
+                  <a href="auth/notification_open.php?id=<?= (int)$notification['id'] ?>" class="list-group-item d-flex justify-content-between align-items-start notification-link">
                     <div>
                       <div class="fw-semibold"><?= e($notification['title']) ?></div>
                       <div class="text-muted small"><?= e($notification['message']) ?></div>
@@ -125,6 +125,6 @@ try {
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/app.js?v=20260811-8"></script>
+  <script src="assets/js/app.js?v=20260818-10"></script>
 </body>
 </html>

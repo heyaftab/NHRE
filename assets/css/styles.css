@@ -1998,6 +1998,35 @@ body.sidebar-collapsed .sidebar-user { margin-top: 10px; border-color: transpare
   padding: 56px 0 80px;
 }
 
+/* Vaccination booking forms: retain readable controls in both application themes. */
+.vaccination-modal .modal-content {
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+}
+.vaccination-modal .modal-header,
+.vaccination-modal .modal-footer { border-color: var(--line); }
+.vaccination-modal .modal-title,
+.vaccination-modal .form-label { color: var(--ink); font-weight: 700; }
+.vaccination-modal .form-control,
+.vaccination-modal .form-select {
+  color: var(--ink);
+  background-color: var(--off-white);
+  border-color: var(--line);
+}
+.vaccination-modal .form-control::placeholder { color: var(--muted-soft); opacity: 1; }
+.vaccination-modal .form-control:focus,
+.vaccination-modal .form-select:focus {
+  color: var(--ink);
+  background-color: var(--card);
+  border-color: var(--teal);
+  box-shadow: 0 0 0 .2rem rgba(0, 166, 166, .16);
+}
+.vaccination-modal .form-select option { color: var(--ink); background: var(--card); }
+.vaccination-modal .form-text { color: var(--muted); }
+html[data-theme="dark"] .vaccination-modal .btn-close { filter: invert(1); }
+
 .dashboard-hero {
   padding: 42px 40px;
   display: flex;
@@ -2432,6 +2461,14 @@ html[data-theme="dark"] .star-picker label {
   padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
+.notification-item,
+.notification-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.notification-item:hover,
+.notification-link:hover { color: inherit; background: rgba(0, 166, 166, .06); }
 
 .notification-item:last-child {
   border-bottom: none;
@@ -3289,6 +3326,63 @@ html[data-theme=dark] #features .row > :nth-child(3n) .feature-icon {
 .table tbody tr { transition: background-color .15s ease; }
 .table tbody tr:hover td { background-color: rgba(0,166,166,.04); }
 
+/* Keep management-list content readable when Bootstrap applies table hover. */
+.table.table-hover {
+  --bs-table-hover-color: var(--ink);
+  --bs-table-hover-bg: rgba(0, 166, 166, .1);
+}
+.table.table-hover > tbody > tr:hover > * {
+  color: var(--ink) !important;
+  background-color: rgba(0, 166, 166, .1) !important;
+}
+.table.table-hover > tbody > tr:hover .text-muted,
+.table.table-hover > tbody > tr:hover small { color: var(--muted) !important; }
+.table.table-hover > tbody > tr:hover a:not(.btn) { color: var(--teal-dark) !important; }
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover > * {
+  color: var(--ink) !important;
+  background-color: rgba(27, 195, 199, .16) !important;
+}
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover .text-dark,
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover .text-black,
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover .text-body {
+  color: #edf6ff !important;
+}
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover .badge.bg-light,
+html[data-theme="dark"] .table.table-hover > tbody > tr:hover .badge.bg-white {
+  color: #edf6ff !important;
+  background-color: #27425d !important;
+  border-color: #5b7893 !important;
+}
+
+/* Shared Lab Technician list states: requests, reports, history, and vaccinations. */
+.medical-test-table > tbody > tr,
+.dashboard-main .table.table-hover > tbody > tr { transition: background-color .18s ease, color .18s ease; }
+.medical-test-table > tbody > tr:focus-within > *,
+.dashboard-main .table.table-hover > tbody > tr:focus-within > * {
+  color: var(--ink) !important;
+  background-color: rgba(0, 166, 166, .1) !important;
+}
+html[data-theme="dark"] .medical-test-table > tbody > tr:focus-within > *,
+html[data-theme="dark"] .dashboard-main .table.table-hover > tbody > tr:focus-within > * {
+  color: #edf6ff !important;
+  background-color: rgba(27, 195, 199, .16) !important;
+}
+html[data-theme="dark"] .medical-test-table > tbody > tr:hover .badge,
+html[data-theme="dark"] .medical-test-table > tbody > tr:focus-within .badge,
+html[data-theme="dark"] .dashboard-main .table.table-hover > tbody > tr:hover .badge,
+html[data-theme="dark"] .dashboard-main .table.table-hover > tbody > tr:focus-within .badge {
+  color: #edf6ff !important;
+  background-color: #27425d !important;
+  border: 1px solid #5b7893;
+}
+html[data-theme="dark"] .medical-test-table > tbody > tr:hover .btn-manage-booking,
+html[data-theme="dark"] .medical-test-table > tbody > tr:focus-within .btn-manage-booking,
+html[data-theme="dark"] .dashboard-main .table.table-hover > tbody > tr:hover .btn-manage-booking,
+html[data-theme="dark"] .dashboard-main .table.table-hover > tbody > tr:focus-within .btn-manage-booking {
+  color: #edf6ff;
+  border-color: #65dce2;
+}
+
 /* ---- Empty states + skeletons + toasts ---- */
 .empty-state {
   display: grid;
@@ -3407,6 +3501,82 @@ html[data-theme=dark] .sidebar-link.is-active {
 .notif-type-icon.t-security       { color: #DC2626; background: rgba(220,38,38,.12); }
 .notif-type-icon.t-blood          { color: #DC2626; background: rgba(220,38,38,.12); }
 .notif-type-icon.t-general        { color: #64748B; background: rgba(100,116,139,.12); }
+
+/* ---- Notification contrast and interaction states ---- */
+.notification-overlay {
+  color: var(--ink);
+  background: var(--card);
+}
+.notification-overlay-head { color: var(--ink); }
+.notification-overlay-head strong { color: var(--ink); }
+.notification-icon-button:focus-visible,
+.notification-mark-read:focus-visible,
+.notification-item:focus-visible,
+.notification-link:focus-visible,
+.notification-overlay-footer:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+}
+.notification-icon-button:hover,
+.notification-icon-button:focus-visible,
+.notification-icon-button:active {
+  color: #061f35;
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.notification-badge {
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.85);
+}
+.notification-item,
+.notification-link {
+  color: var(--ink);
+  background: transparent;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.notification-item-title { color: var(--ink); }
+.notification-item-msg,
+.notification-item-time,
+.notification-empty { color: var(--muted); }
+.notification-item:hover,
+.notification-link:hover,
+.notification-item:focus-visible,
+.notification-link:focus-visible {
+  color: var(--ink);
+  background: rgba(0, 166, 166, .12);
+  box-shadow: inset 3px 0 0 var(--teal);
+}
+.notification-item:hover .notification-item-title,
+.notification-link:hover .notification-item-title,
+.notification-item:focus-visible .notification-item-title,
+.notification-link:focus-visible .notification-item-title { color: var(--ink); }
+.notification-item:hover .notification-item-msg,
+.notification-item:hover .notification-item-time,
+.notification-link:hover .notification-item-msg,
+.notification-link:hover .notification-item-time,
+.notification-item:focus-visible .notification-item-msg,
+.notification-item:focus-visible .notification-item-time,
+.notification-link:focus-visible .notification-item-msg,
+.notification-link:focus-visible .notification-item-time { color: var(--muted); }
+.notification-item:active,
+.notification-link:active { background: rgba(0, 166, 166, .2); }
+.notification-item-unread { background: rgba(0, 166, 166, .1); }
+.notification-mark-read { color: var(--teal-dark); }
+.notification-mark-read:hover,
+.notification-mark-read:focus-visible { color: var(--ink); text-decoration: underline; }
+.notification-overlay-footer { color: var(--teal-dark); background: var(--off-white); }
+.notification-overlay-footer:hover,
+.notification-overlay-footer:focus-visible { color: var(--ink); background: rgba(0, 166, 166, .12); }
+.notification-link .badge { border: 1px solid currentColor; font-weight: 700; }
+.notification-link .badge.bg-success-subtle { color: #075f36 !important; background: #d8f4e2 !important; }
+.notification-link .badge.bg-warning-subtle { color: #704600 !important; background: #fff0bd !important; }
+html[data-theme="dark"] .notification-item:hover,
+html[data-theme="dark"] .notification-link:hover,
+html[data-theme="dark"] .notification-item:focus-visible,
+html[data-theme="dark"] .notification-link:focus-visible { background: rgba(27, 195, 199, .18); }
+html[data-theme="dark"] .notification-link .badge.bg-success-subtle { color: #a9edc4 !important; background: #153e2d !important; }
+html[data-theme="dark"] .notification-link .badge.bg-warning-subtle { color: #ffe0a3 !important; background: #4b3510 !important; }
+html[data-theme="dark"] .notif-type-icon.t-general { color: #c4d2df; background: rgba(196,210,223,.16); }
 
 /* ---- Scrollbar ---- */
 ::-webkit-scrollbar { width: 12px; height: 12px; }

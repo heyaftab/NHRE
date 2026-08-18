@@ -149,10 +149,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_booking') {
     }
 
     try {
-        $stmt = db()->prepare('SELECT id FROM medical_test_bookings WHERE id = ? LIMIT 1');
+        $stmt = db()->prepare('SELECT mtb.id, mt.center_id, mt.department FROM medical_test_bookings mtb JOIN medical_tests mt ON mt.id = mtb.test_id WHERE mtb.id = ? LIMIT 1');
         $stmt->execute([$booking_id]);
-        if (!$stmt->fetch()) {
+        $booking = $stmt->fetch();
+        if (!$booking) {
             $_SESSION['errors'] = ['The selected booking could not be found.'];
+            redirect('../medical_tests.php');
+        }
+        if (!technician_can_manage_center($user_id, (int)$booking['center_id'], (string)$booking['department'])) {
+            $_SESSION['errors'] = ['You are not authorized to manage requests for this hospital or laboratory section.'];
             redirect('../medical_tests.php');
         }
 
